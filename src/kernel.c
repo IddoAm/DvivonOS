@@ -19,7 +19,18 @@ void kernel_main(void)
 {
 	/* Initialize terminal interface */
 	terminal_initialize();
+	terminal_writestring("Welcome to Iddo and Hillel amazing os!!!!\n");
 
-	/* Newline support is left as an exercise. */
-	terminal_writestring("Iddo and Hillel best os!!\n");
+
+	//key_event event;
+	/*
+	while(true){
+
+		if(keyboard_read(&event)){
+			if(event.type == KEY_CHAR){
+				terminal_putchar(event.c);
+			}
+		}
+	}
+	*/
 }
