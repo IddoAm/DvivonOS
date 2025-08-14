@@ -1,0 +1,16 @@
+# Build artifacts
+build/
+*.o
+*.bin
+
+# ISO image
+myos.iso
+
+# OS-reserved files
+*.elf
+*.img
+
+# Editor/IDE files
+*.swp
+.vscode/
+
