@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "os.h"
 
 enum vga_color {
 	VGA_COLOR_BLACK = 0,
@@ -49,6 +50,17 @@ size_t terminal_column;
 uint8_t terminal_color;
 uint16_t* terminal_buffer = (uint16_t*)VGA_MEMORY;
 
+
+void terminal_move_cursor(size_t row, size_t col) {
+    uint16_t pos = row * VGA_WIDTH + col;
+
+    outb(0x3D4, 14);              // Tell VGA we’re setting high byte of cursor
+    outb(0x3D5, (pos >> 8) & 0xFF);
+
+    outb(0x3D4, 15);              // Low byte
+    outb(0x3D5, pos & 0xFF);
+}
+
 void terminal_initialize(void) 
 {
 	terminal_row = 0;
@@ -80,16 +92,19 @@ void terminal_putchar(char c)
 	if(c == '\n'){
 		terminal_row++;
 		terminal_column = 0;
-
-		return;
+	}
+	else{
+		terminal_putentryat(c, terminal_color, terminal_column, terminal_row);
+		if (++terminal_column == VGA_WIDTH) {
+			terminal_column = 0;
+			if (++terminal_row == VGA_HEIGHT){
+				terminal_row = 0;
+			}	
+		}
 	}
 
-	terminal_putentryat(c, terminal_color, terminal_column, terminal_row);
-	if (++terminal_column == VGA_WIDTH) {
-		terminal_column = 0;
-		if (++terminal_row == VGA_HEIGHT)
-			terminal_row = 0;
-	}
+
+	terminal_move_cursor(terminal_row, terminal_column);
 }
 
 void terminal_write(const char* data, size_t size) 
