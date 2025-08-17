@@ -33,7 +33,7 @@ void kernel_main(void)
 
 		if(keyboard_read(&event)){
 			if(event.type == KEY_CHAR){
-				terminal_putchar(event.c);
+				putchar(event.c);
 			}
 		}
 		__asm__ volatile ("hlt");

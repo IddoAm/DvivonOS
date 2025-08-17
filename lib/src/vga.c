@@ -4,6 +4,8 @@
 
 #include "os.h"
 
+void terminal_clear(void);
+
 enum vga_color {
 	VGA_COLOR_BLACK = 0,
 	VGA_COLOR_BLUE = 1,
@@ -97,12 +99,12 @@ void terminal_putchar(char c)
 		terminal_putentryat(c, terminal_color, terminal_column, terminal_row);
 		if (++terminal_column == VGA_WIDTH) {
 			terminal_column = 0;
-			if (++terminal_row == VGA_HEIGHT){
-				terminal_row = 0;
-			}	
+			terminal_row++;
 		}
 	}
-
+	if (terminal_row == VGA_HEIGHT) {
+		terminal_clear();
+	}
 
 	terminal_move_cursor(terminal_row, terminal_column);
 }
@@ -116,4 +118,16 @@ void terminal_write(const char* data, size_t size)
 void terminal_writestring(const char* data) 
 {
 	terminal_write(data, strlen(data));
+}
+
+void terminal_clear(void)
+{
+	for (size_t y = 0; y < VGA_HEIGHT; y++) {
+		for (size_t x = 0; x < VGA_WIDTH; x++) {
+			terminal_putentryat(' ', terminal_color, x, y);
+		}
+	}
+	terminal_row = 0;
+	terminal_column = 0;
+	terminal_move_cursor(terminal_row, terminal_column);
 }
