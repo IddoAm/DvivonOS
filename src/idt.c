@@ -210,7 +210,7 @@ void exception_register_handler(uint8_t exception, excption_handler_t handler) {
 }
 
 void exception_unregister_handler(uint8_t exception) {
-    if (exception >= 0 && exception < IRQ_COUNT) {
+    if (exception >= 0 && exception < EXCEPTION_COUNT) {
         excption_handlers[exception] = 0;
     }
 }
