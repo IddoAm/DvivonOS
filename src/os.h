@@ -14,4 +14,8 @@ static inline void outb(uint16_t port, uint8_t data) {
     __asm__ __volatile__("outb %0, %1" : : "a"(data), "dN"(port));
 }
 
+static inline void io_wait(void) {
+    __asm__ volatile ("outb %%al, $0x80" : : "a"(0));
+}
+
 #endif 

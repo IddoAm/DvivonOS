@@ -14,13 +14,15 @@ typedef enum {
     KEY_CTRL,
     KEY_ALT,
     KEY_UNKNOWN
-} key_type;
+} KEY_TYPE;
 
 typedef struct {
-    key_type type;
+    KEY_TYPE type;
     char c; // valid only if type == KEY_CHAR
 } key_event;
 
+// Return false is buffer is empty
 bool keyboard_read(key_event* event);
+void keyboard_callback();
 
 #endif

@@ -4,6 +4,8 @@
 
 #include "vga.h"
 #include "gdt.h"
+#include "idt.h"
+#include "keyboard.h"
 
 /* Check if the compiler thinks you are targeting the wrong operating system. */
 #if defined(__linux__)
@@ -18,11 +20,13 @@
 
 void kernel_main(void) 
 {
-	gdt_init();
-
-	/* Initialize terminal interface */
 	terminal_initialize();
 	terminal_writestring("Welcome to Iddo and Hillel amazing os!!!!\n");
+
+	gdt_init();
+	idt_init();
+
+	/* Initialize terminal interface */
 
 
 	//key_event event;
