@@ -2,6 +2,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "os.h"
+
+void vga_clear(void);
 
 enum vga_color {
 	VGA_COLOR_BLACK = 0,
@@ -49,7 +52,18 @@ size_t terminal_column;
 uint8_t terminal_color;
 uint16_t* terminal_buffer = (uint16_t*)VGA_MEMORY;
 
-void terminal_initialize(void) 
+
+void terminal_move_cursor(size_t row, size_t col) {
+    uint16_t pos = row * VGA_WIDTH + col;
+
+    outb(0x3D4, 14);              // Tell VGA we’re setting high byte of cursor
+    outb(0x3D5, (pos >> 8) & 0xFF);
+
+    outb(0x3D4, 15);              // Low byte
+    outb(0x3D5, pos & 0xFF);
+}
+
+void vga_initialize(void) 
 {
 	terminal_row = 0;
 	terminal_column = 0;
@@ -74,31 +88,46 @@ void terminal_putentryat(char c, uint8_t color, size_t x, size_t y)
 	terminal_buffer[index] = vga_entry(c, color);
 }
 
-void terminal_putchar(char c) 
+void vga_putchar(char c) 
 {
 	// Line Break
 	if(c == '\n'){
 		terminal_row++;
 		terminal_column = 0;
-
-		return;
+	}
+	else{
+		terminal_putentryat(c, terminal_color, terminal_column, terminal_row);
+		if (++terminal_column == VGA_WIDTH) {
+			terminal_column = 0;
+			terminal_row++;
+		}
+	}
+	if (terminal_row == VGA_HEIGHT) {
+		vga_clear();
 	}
 
-	terminal_putentryat(c, terminal_color, terminal_column, terminal_row);
-	if (++terminal_column == VGA_WIDTH) {
-		terminal_column = 0;
-		if (++terminal_row == VGA_HEIGHT)
-			terminal_row = 0;
-	}
+	terminal_move_cursor(terminal_row, terminal_column);
 }
 
 void terminal_write(const char* data, size_t size) 
 {
 	for (size_t i = 0; i < size; i++)
-		terminal_putchar(data[i]);
+		vga_putchar(data[i]);
 }
 
-void terminal_writestring(const char* data) 
+void vga_writestring(const char* data) 
 {
 	terminal_write(data, strlen(data));
+}
+
+void vga_clear(void)
+{
+	for (size_t y = 0; y < VGA_HEIGHT; y++) {
+		for (size_t x = 0; x < VGA_WIDTH; x++) {
+			terminal_putentryat(' ', terminal_color, x, y);
+		}
+	}
+	terminal_row = 0;
+	terminal_column = 0;
+	terminal_move_cursor(terminal_row, terminal_column);
 }

@@ -2,8 +2,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "vga.h"
-#include "gdt.h"
+#include <stdio.h>
+#include <gdt.h>
+#include <idt.h>
+#include <keyboard.h>
 
 /* Check if the compiler thinks you are targeting the wrong operating system. */
 #if defined(__linux__)
@@ -15,25 +17,27 @@
 #error "This tutorial needs to be compiled with a ix86-elf compiler"
 #endif
 
-
 void kernel_main(void) 
 {
+	
 	gdt_init();
+	idt_init();
+	
+	irq_register_handler(1, keyboard_callback);
+	
+	// todo: move this to terminal file
+	stdio_init();
+	printf("Welcome to Iddo and Hillel amazing os!!!!\n");
+	key_event event;
 
-	/* Initialize terminal interface */
-	terminal_initialize();
-	terminal_writestring("Welcome to Iddo and Hillel amazing os!!!!\n");
-
-
-	//key_event event;
-	/*
 	while(true){
 
 		if(keyboard_read(&event)){
 			if(event.type == KEY_CHAR){
-				terminal_putchar(event.c);
+				putc(event.c);
 			}
 		}
+		__asm__ volatile ("hlt");
 	}
-	*/
+	
 }

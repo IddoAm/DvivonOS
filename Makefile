@@ -11,7 +11,7 @@ AS = i686-elf-as
 LD = i686-elf-gcc
 
 # Define compilation flags for the C and Assembly files
-CFLAGS = -ffreestanding -O2 -Wall -Wextra -Isrc
+CFLAGS = -I lib/includes -ffreestanding -O2 -Wall -Wextra -Isrc
 ASFLAGS = --32
 
 # Define linker flags
@@ -30,11 +30,13 @@ ISO_IMAGE = myos.iso
 # Find all source files
 C_SOURCES := $(wildcard src/*.c)
 S_SOURCES := $(wildcard src/*.s)
+LIB_C_SOURCES := $(wildcard lib/src/*.c)
 
 # Automatically generate object file names from source files
 C_OBJECTS := $(patsubst src/%.c,$(BUILD_DIR)/%.o,$(C_SOURCES))
 S_OBJECTS := $(patsubst src/%.s,$(BUILD_DIR)/%.o,$(S_SOURCES))
-OBJECTS := $(C_OBJECTS) $(S_OBJECTS)
+LIB_C_OBJECTS := $(patsubst lib/src/%.c,$(BUILD_DIR)/lib_%.o,$(LIB_C_SOURCES))
+OBJECTS := $(C_OBJECTS) $(S_OBJECTS) $(LIB_C_OBJECTS)
 
 # =========================================================================
 # --- Build Rules ---
@@ -42,7 +44,7 @@ OBJECTS := $(C_OBJECTS) $(S_OBJECTS)
 .PHONY: all
 all: $(ISO_IMAGE)
 
-# Rule to create the final ISO image
+# Rule to create the final ISO image. 
 $(ISO_IMAGE): $(KERNEL_BIN)
 	@echo "Creating ISO..."
 	@mkdir -p $(GRUB_DIR)
@@ -69,6 +71,11 @@ $(BUILD_DIR)/%.o: src/%.s
 	@mkdir -p $(BUILD_DIR)
 	@echo "Assembling $< -> $@"
 	@$(AS) $(ASFLAGS) $< -o $@
+
+$(BUILD_DIR)/lib_%.o: lib/src/%.c
+	@mkdir -p $(BUILD_DIR)
+	@echo "Compiling $< -> $@"
+	@$(CC) $(CFLAGS) -c $< -o $@
 
 # =========================================================================
 # --- Utility Rules ---

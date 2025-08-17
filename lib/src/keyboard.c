@@ -2,7 +2,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "keyboard.h"
+
+#include <keyboard.h>
+#include <os.h>
 
 #define KEYBOARD_BUFFER_SIZE 256
 
@@ -26,12 +28,6 @@ const char scancode_map[128] = {
 key_event keyboard_buffer[KEYBOARD_BUFFER_SIZE] = {0};
 volatile uint8_t buffer_head = 0;
 volatile uint8_t buffer_tail = 0;
-
-static inline uint8_t inb(uint16_t port) {
-    uint8_t ret;
-    asm volatile ("inb %1, %0" : "=a"(ret) : "Nd"(port));
-    return ret;
-}
 
 void keyboard_callback() {
     uint8_t scancode = inb(0x60);
