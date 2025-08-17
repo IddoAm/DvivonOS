@@ -2,10 +2,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "vga.h"
-#include "gdt.h"
-#include "idt.h"
-#include "keyboard.h"
+#include <stdio.h>
+#include <gdt.h>
+#include <idt.h>
+#include <keyboard.h>
 
 /* Check if the compiler thinks you are targeting the wrong operating system. */
 #if defined(__linux__)
@@ -20,8 +20,8 @@
 
 void kernel_main(void) 
 {
-	terminal_initialize();
-	terminal_writestring("Welcome to Iddo and Hillel amazing os!!!!\n");
+	init_terminal();
+	printf("Welcome to Iddo and Hillel amazing os!!!!\n");
 
 	gdt_init();
 	idt_init();

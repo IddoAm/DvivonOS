@@ -1,7 +1,7 @@
 
-#include "idt.h"
-#include "os.h"
-#include "vga.h"
+#include <idt.h>
+#include <os.h>
+#include <vga.h>
 
 void pic_remap(void) {
     unsigned char a1, a2;
