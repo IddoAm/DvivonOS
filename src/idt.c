@@ -66,6 +66,8 @@ extern void idt_flush(idtr* idtp);
 extern void irq0();
 extern void irq1();
 
+
+
 void idt_init(void) {
     _idtr.limit = sizeof(idt) - 1;
     _idtr.base  = (uint32_t)&idt;
@@ -79,42 +81,48 @@ void idt_init(void) {
 
     pic_remap();
 
-    /* unmask only IRQ0 and IRQ1 on master, mask slave */
-    outb(0x21, 0xFC); // 11111100b -> allow IRQ0 and IRQ1 only
-    outb(0xA1, 0xFF); // mask all on slave
-
     unsigned char master = inb(0x21);
     unsigned char slave  = inb(0xA1);
 
     idt_flush(&_idtr);
-    __asm__ volatile ("int $0x21");
     __asm__ volatile ("sti");
 }
 
-void irq_common_handler(void* frame) {
-    terminal_writestring("la");
-    uint32_t* stack = (uint32_t*)frame;
-    uint32_t int_no = stack[9];  // offset depends on pusha layout
-    terminal_writestring("li");
+struct regs {
+    uint32_t gs, fs, es, ds;
+    uint32_t edi, esi, ebp, esp, ebx, edx, ecx, eax;
+    uint32_t int_no, err_code;  
+    uint32_t eip, cs, eflags, useresp, ss;
+};
 
-    int irq = int_no - 32;  // 0 = timer, 1 = keyboard
+static irq_handler_t irq_handlers[IRQ_COUNT] = { 0 };
 
-    if (irq == 0) {
-        // timer tick handler
-        terminal_writestring("g");
-    } else if (irq == 1) {
-        uint8_t scancode = inb(0x60);
-        // keyboard handler
-        terminal_writestring("pressed\n");
-    }else{
-        terminal_writestring("aaaa\n");
+void irq_common_handler(struct regs* r) {
+    int irq = r->int_no - 0x20;   
+
+    if (irq >= 0 && irq < IRQ_COUNT) {
+        if (irq_handlers[irq]) {
+            irq_handlers[irq]();
+        }
     }
 
-    // Acknowledge PICa
+    // Send EOI
     if (irq >= 8) outb(0xA0, 0x20);
     outb(0x20, 0x20);
 }
 
-void isr_common_handler(void* frame) {
+void isr_common_handler(struct regs* r) {
+    // for CPU exceptions (int_no = 0–31)
+}
 
+void irq_register_handler(int irq, irq_handler_t handler) {
+    if (irq >= 0 && irq < IRQ_COUNT) {
+        irq_handlers[irq] = handler;
+    }
+}
+
+void irq_unregister_handler(int irq) {
+    if (irq >= 0 && irq < IRQ_COUNT) {
+        irq_handlers[irq] = 0;
+    }
 }
