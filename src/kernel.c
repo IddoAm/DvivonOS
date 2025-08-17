@@ -17,7 +17,6 @@
 #error "This tutorial needs to be compiled with a ix86-elf compiler"
 #endif
 
-
 void kernel_main(void) 
 {
 	init_terminal();
@@ -25,12 +24,11 @@ void kernel_main(void)
 
 	gdt_init();
 	idt_init();
+	
+	irq_register_handler(1, keyboard_callback);
 
-	/* Initialize terminal interface */
+	key_event event;
 
-
-	//key_event event;
-	/*
 	while(true){
 
 		if(keyboard_read(&event)){
@@ -38,6 +36,7 @@ void kernel_main(void)
 				terminal_putchar(event.c);
 			}
 		}
+		__asm__ volatile ("hlt");
 	}
-	*/
+	
 }
