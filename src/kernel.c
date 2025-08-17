@@ -19,21 +19,22 @@
 
 void kernel_main(void) 
 {
-	init_terminal();
-	printf("Welcome to Iddo and Hillel amazing os!!!!\n");
-
+	
 	gdt_init();
 	idt_init();
 	
 	irq_register_handler(1, keyboard_callback);
-
+	
+	// todo: move this to terminal file
+	stdio_init();
+	printf("Welcome to Iddo and Hillel amazing os!!!!\n");
 	key_event event;
 
 	while(true){
 
 		if(keyboard_read(&event)){
 			if(event.type == KEY_CHAR){
-				putchar(event.c);
+				putc(event.c);
 			}
 		}
 		__asm__ volatile ("hlt");

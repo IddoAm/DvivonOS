@@ -191,14 +191,14 @@ void isr_common_handler(struct regs* r) {
         if(excption_handlers[code]){
             excption_handlers[code](code);
         }else{
-            terminal_writestring("UNHANDLED EXCEPTION: ");
-            terminal_writestring(exception_messages[code]);
-            terminal_writestring("\nSystem Halted.\n");
+            vga_writestring("UNHANDLED EXCEPTION: ");
+            vga_writestring(exception_messages[code]);
+            vga_writestring("\nSystem Halted.\n");
 
             __asm__ volatile ("cli; hlt");
         }
     }else{
-        terminal_writestring("UNHANDLED INTURRPT\n");
+        vga_writestring("UNHANDLED INTURRPT\n");
         // TODO: add printing of numbers
     }
 }

@@ -1,18 +1,40 @@
 #include <stdio.h>
 #include <vga.h>
 
-void init_terminal(void) {
-    terminal_initialize();
+
+static stdio_interface_t *active_interface = NULL;
+// Default interface, can be replaced by user-defined interfaces
+static stdio_interface_t vga_interface = {
+    .init = vga_initialize,
+    .clear = vga_clear,
+    .putc = vga_putchar,
+    .puts = vga_writestring
+};
+
+void stdio_set_interface(stdio_interface_t *interface) {
+    active_interface = interface;
+}
+
+stdio_interface_t *stdio_get_interface(void) {
+    return active_interface;
+}
+
+// Modular stdio functions
+void stdio_init(void) {
+    if (!active_interface) active_interface = &vga_interface;
+    if (active_interface && active_interface->init) active_interface->init();
+}
+
+void stdio_clear(void) {
+    if (active_interface && active_interface->clear) active_interface->clear();
+}
+
+void putc(char c) {
+    if (active_interface && active_interface->putc) active_interface->putc(c);
 }
 
 void puts(const char *str) {
-    while (*str) {
-        putchar(*str++);
-    }
-}
-
-void putchar(char c) {
-    terminal_putchar(c);
+    if (active_interface && active_interface->puts) active_interface->puts(str);
 }
 
 int printf(const char *format, ...) {
@@ -22,23 +44,20 @@ int printf(const char *format, ...) {
     for (const char *p = format; *p; ++p) {
         if (*p == '%') {
             ++p;
-            // print char
             if (*p == 'c') {
                 char val = (char)va_arg(args, int);
-                putchar(val);
+                putc(val);
                 ++count;
-            // print string
             } else if (*p == 's') {
                 const char *val = va_arg(args, const char *);
                 puts(val);
                 while (*val++) ++count;
-            // print int
             } else if (*p == 'd') {
                 int val = va_arg(args, int);
-                char buffer[20]; // Buffer for integer to string conversion
+                char buffer[20];
                 int len = 0;
                 if (val < 0) {
-                    putchar('-');
+                    putc('-');
                     val = -val;
                     ++count;
                 }
@@ -47,10 +66,9 @@ int printf(const char *format, ...) {
                     val /= 10;
                 } while (val > 0);
                 for (int i = len - 1; i >= 0; --i) {
-                    putchar(buffer[i]);
+                    putc(buffer[i]);
                     ++count;
                 }
-            // print hex
             } else if (*p == 'x') {
                 unsigned int val = va_arg(args, unsigned int);
                 char buffer[20];
@@ -61,19 +79,19 @@ int printf(const char *format, ...) {
                     val /= 16;
                 } while (val > 0);
                 for (int i = len - 1; i >= 0; --i) {
-                    putchar(buffer[i]);
+                    putc(buffer[i]);
                     ++count;
                 }
             } else if (*p == '%') {
-                putchar('%');
-                ++count; 
+                putc('%');
+                ++count;
             } else {
-                putchar('%');
-                putchar(*p);
+                putc('%');
+                putc(*p);
                 count += 2;
             }
         } else {
-            putchar(*p);
+            putc(*p);
             ++count;
         }
     }

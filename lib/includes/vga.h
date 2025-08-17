@@ -5,8 +5,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
-void terminal_initialize(void);
-void terminal_putchar(char c);
-void terminal_writestring(const char* data);
+void vga_initialize(void);
+void vga_putchar(char c);
+void vga_writestring(const char* data);
+void vga_clear(void);
 
 #endif

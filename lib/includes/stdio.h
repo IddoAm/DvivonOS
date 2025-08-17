@@ -1,19 +1,28 @@
+
 #ifndef STDIO_H
 #define STDIO_H
 
 #include <stdarg.h>
 #include <stddef.h>
 
-//init the vga
-void init_terminal(void);
+typedef struct stdio_interface {
+	void (*init)(void);
+	void (*clear)(void);
+	void (*putc)(char c);
+	void (*puts)(const char *str);
+} stdio_interface_t;
 
-// Print a string to the screen
+// Set the active stdio interface
+void stdio_set_interface(stdio_interface_t *interface);
+
+// Get the active stdio interface
+stdio_interface_t *stdio_get_interface(void);
+
+// Modular stdio functions (use the active interface)
+void stdio_init(void);
+void stdio_clear(void);
+void putc(char c);
 void puts(const char *str);
-
-// Print a character to the screen
-void putchar(char c);
-
-// Print formatted output to the screen
 int printf(const char *format, ...);
 
 #endif // STDIO_H

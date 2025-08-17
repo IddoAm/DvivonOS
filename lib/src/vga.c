@@ -4,7 +4,7 @@
 
 #include "os.h"
 
-void terminal_clear(void);
+void vga_clear(void);
 
 enum vga_color {
 	VGA_COLOR_BLACK = 0,
@@ -63,7 +63,7 @@ void terminal_move_cursor(size_t row, size_t col) {
     outb(0x3D5, pos & 0xFF);
 }
 
-void terminal_initialize(void) 
+void vga_initialize(void) 
 {
 	terminal_row = 0;
 	terminal_column = 0;
@@ -88,7 +88,7 @@ void terminal_putentryat(char c, uint8_t color, size_t x, size_t y)
 	terminal_buffer[index] = vga_entry(c, color);
 }
 
-void terminal_putchar(char c) 
+void vga_putchar(char c) 
 {
 	// Line Break
 	if(c == '\n'){
@@ -103,7 +103,7 @@ void terminal_putchar(char c)
 		}
 	}
 	if (terminal_row == VGA_HEIGHT) {
-		terminal_clear();
+		vga_clear();
 	}
 
 	terminal_move_cursor(terminal_row, terminal_column);
@@ -112,15 +112,15 @@ void terminal_putchar(char c)
 void terminal_write(const char* data, size_t size) 
 {
 	for (size_t i = 0; i < size; i++)
-		terminal_putchar(data[i]);
+		vga_putchar(data[i]);
 }
 
-void terminal_writestring(const char* data) 
+void vga_writestring(const char* data) 
 {
 	terminal_write(data, strlen(data));
 }
 
-void terminal_clear(void)
+void vga_clear(void)
 {
 	for (size_t y = 0; y < VGA_HEIGHT; y++) {
 		for (size_t x = 0; x < VGA_WIDTH; x++) {
