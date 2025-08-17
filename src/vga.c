@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+void clear_screen(void);
 
 enum vga_color {
 	VGA_COLOR_BLACK = 0,
@@ -78,7 +79,9 @@ void terminal_putchar(char c)
 {
 	// Line Break
 	if(c == '\n'){
-		terminal_row++;
+		if (++terminal_row == VGA_HEIGHT) {
+			clear_screen();
+		}
 		terminal_column = 0;
 
 		return;
@@ -88,7 +91,7 @@ void terminal_putchar(char c)
 	if (++terminal_column == VGA_WIDTH) {
 		terminal_column = 0;
 		if (++terminal_row == VGA_HEIGHT)
-			terminal_row = 0;
+			clear_screen();
 	}
 }
 
@@ -101,4 +104,15 @@ void terminal_write(const char* data, size_t size)
 void terminal_writestring(const char* data) 
 {
 	terminal_write(data, strlen(data));
+}
+
+void clear_screen(void) 
+{
+	for (size_t y = 0; y < VGA_HEIGHT; y++) {
+		for (size_t x = 0; x < VGA_WIDTH; x++) {
+			terminal_putentryat(' ', terminal_color, x, y);
+		}
+	}
+	terminal_row = 0;
+	terminal_column = 0;
 }
