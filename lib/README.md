@@ -6,30 +6,23 @@ The `lib` directory contains all OS library code and headers, organized as follo
 - `lib/includes/` — Header files (e.g., `stdio.h`, `vga.h`)
 - `lib/src/`      — Source files (e.g., `stdio.c`)
 
-## Files
+## Libraries
 
-- `includes/stdio.h` — Standard output function declarations
-- `includes/vga.h`   — VGA output declarations
-- `src/stdio.c`      — Implementation of standard output functions
-- `src/vga.c`        — Implementation of VGA output functions
+- `gdt` — Global Descriptor Table management
+- `idt` — Interrupt Descriptor Table management
+- `keyboard` — Keyboard input handling
+- `stdio` — Standard input/output functions
+- `vga` — VGA text mode output functions
 
 ## Usage
 
 To use these libraries in your code:
 
-1. Add the `lib/includes` directory to your compiler's include path:
-   
-    ```sh
-	gcc -Ilib/includes ...
-	```
-
-2. Include headers in your source files:
+1. Include headers in your source files:
    
 	```c
 	#include <nameOfLibrary.h>
 	```
-
-3. Link with the corresponding source files (e.g., `lib/src/stdio.c`).
 
 ## Notes
 
