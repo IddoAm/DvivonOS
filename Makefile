@@ -29,12 +29,12 @@ ISO_IMAGE = myos.iso
 # --- Source Files ---
 # Find all source files in new structure
 C_SOURCES := $(wildcard src/core/*.c)
-S_SOURCES := $(wildcard src/boot/*.s)
+S_SOURCES := $(wildcard src/asm/*.s)
 LIB_C_SOURCES := $(wildcard lib/src/*.c)
 
 # Automatically generate object file names from source files
 C_OBJECTS := $(patsubst src/core/%.c,$(BUILD_DIR)/core_%.o,$(C_SOURCES))
-S_OBJECTS := $(patsubst src/boot/%.s,$(BUILD_DIR)/boot_%.o,$(S_SOURCES))
+S_OBJECTS := $(patsubst src/asm/%.s,$(BUILD_DIR)/boot_%.o,$(S_SOURCES))
 LIB_C_OBJECTS := $(patsubst lib/src/%.c,$(BUILD_DIR)/lib_%.o,$(LIB_C_SOURCES))
 OBJECTS := $(C_OBJECTS) $(S_OBJECTS) $(LIB_C_OBJECTS)
 
@@ -69,7 +69,7 @@ $(BUILD_DIR)/core_%.o: src/core/%.c
 
 # Rule to assemble assembly source files.
 
-$(BUILD_DIR)/boot_%.o: src/boot/%.s
+$(BUILD_DIR)/boot_%.o: src/asm/%.s
 	@mkdir -p $(BUILD_DIR)
 	@echo "Assembling $< -> $@"
 	@$(AS) $(ASFLAGS) $< -o $@

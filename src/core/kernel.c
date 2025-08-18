@@ -6,6 +6,7 @@
 #include <gdt.h>
 #include <idt.h>
 #include <keyboard.h>
+#include <vga.h>
 
 /* Check if the compiler thinks you are targeting the wrong operating system. */
 #if defined(__linux__)
@@ -26,6 +27,13 @@ void kernel_main(void)
 	irq_register_handler(1, keyboard_callback);
 	
 	// todo: move this to terminal file
+    stdio_interface_t vga_interface = {
+        .init = vga_initialize,
+        .clear = vga_clear,
+        .putc = vga_putchar,
+        .puts = vga_writestring
+    };
+    stdio_set_interface(&vga_interface);
 	stdio_init();
 	printf("Welcome to Iddo and Hillel amazing os!!!!\n");
 	key_event event;

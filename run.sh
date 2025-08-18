@@ -6,7 +6,7 @@ if [[ ":$PATH:" != *":$HOME/opt/cross/bin:"* ]]; then
 fi
 
 # rebuild the project
-make clean; make
+make
 
 # run the project
 qemu-system-i386 -cdrom myos.iso
