@@ -11,11 +11,11 @@ AS = i686-elf-as
 LD = i686-elf-gcc
 
 # Define compilation flags for the C and Assembly files
-CFLAGS = -I lib/includes -ffreestanding -O2 -Wall -Wextra -Isrc
+CFLAGS = -Ilib/includes -Isrc/include -ffreestanding -O2 -Wall -Wextra -Isrc
 ASFLAGS = --32
 
 # Define linker flags
-LDFLAGS = -T src/linker.ld -ffreestanding -O2 -nostdlib -lgcc
+LDFLAGS = -T src/core/linker.ld -ffreestanding -O2 -nostdlib -lgcc
 
 # Define the build directories
 BUILD_DIR = build
@@ -27,14 +27,14 @@ KERNEL_BIN = myos.bin
 ISO_IMAGE = myos.iso
 
 # --- Source Files ---
-# Find all source files
-C_SOURCES := $(wildcard src/*.c)
-S_SOURCES := $(wildcard src/*.s)
+# Find all source files in new structure
+C_SOURCES := $(wildcard src/core/*.c)
+S_SOURCES := $(wildcard src/boot/*.s)
 LIB_C_SOURCES := $(wildcard lib/src/*.c)
 
 # Automatically generate object file names from source files
-C_OBJECTS := $(patsubst src/%.c,$(BUILD_DIR)/%.o,$(C_SOURCES))
-S_OBJECTS := $(patsubst src/%.s,$(BUILD_DIR)/%.o,$(S_SOURCES))
+C_OBJECTS := $(patsubst src/core/%.c,$(BUILD_DIR)/core_%.o,$(C_SOURCES))
+S_OBJECTS := $(patsubst src/boot/%.s,$(BUILD_DIR)/boot_%.o,$(S_SOURCES))
 LIB_C_OBJECTS := $(patsubst lib/src/%.c,$(BUILD_DIR)/lib_%.o,$(LIB_C_SOURCES))
 OBJECTS := $(C_OBJECTS) $(S_OBJECTS) $(LIB_C_OBJECTS)
 
@@ -49,7 +49,7 @@ $(ISO_IMAGE): $(KERNEL_BIN)
 	@echo "Creating ISO..."
 	@mkdir -p $(GRUB_DIR)
 	@cp $(KERNEL_BIN) $(ISO_DIR)/boot/$(KERNEL_BIN)
-	@cp src/grub.cfg $(GRUB_DIR)/grub.cfg
+	@cp src/core/grub.cfg $(GRUB_DIR)/grub.cfg
 	@grub-mkrescue -o $(ISO_IMAGE) $(ISO_DIR)
 	@echo "Build complete! ISO: $(ISO_IMAGE)"
 
@@ -61,13 +61,15 @@ $(KERNEL_BIN): $(OBJECTS)
 # Rule to compile C source files.
 # The '$<` variable is the source file (e.g., src/kernel.c)
 # The '$@` variable is the target file (e.g., build/kernel.o)
-$(BUILD_DIR)/%.o: src/%.c
+
+$(BUILD_DIR)/core_%.o: src/core/%.c
 	@mkdir -p $(BUILD_DIR)
 	@echo "Compiling $< -> $@"
-	@$(CC) $(CFLAGS) -c $< -o $@
+	@$(CC) $(CFLAGS) -I src/include -c $< -o $@
 
 # Rule to assemble assembly source files.
-$(BUILD_DIR)/%.o: src/%.s
+
+$(BUILD_DIR)/boot_%.o: src/boot/%.s
 	@mkdir -p $(BUILD_DIR)
 	@echo "Assembling $< -> $@"
 	@$(AS) $(ASFLAGS) $< -o $@

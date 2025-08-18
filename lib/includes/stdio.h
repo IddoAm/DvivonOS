@@ -5,6 +5,8 @@
 #include <stdarg.h>
 #include <stddef.h>
 
+#define EOF (-1)
+
 typedef struct stdio_interface {
 	void (*init)(void);
 	void (*clear)(void);

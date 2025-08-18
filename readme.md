@@ -14,3 +14,5 @@ To build and run this OS, follow these steps:
    ```bash
    qemu-system-i386 -cdrom myos.iso
    ```
+
+or run ./run.sh

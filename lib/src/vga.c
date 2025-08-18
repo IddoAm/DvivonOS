@@ -2,7 +2,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "os.h"
+#include <os.h>
+#include <string.h>
 
 void vga_clear(void);
 
@@ -35,13 +36,6 @@ static inline uint16_t vga_entry(unsigned char uc, uint8_t color)
 	return (uint16_t) uc | (uint16_t) color << 8;
 }
 
-size_t strlen(const char* str) 
-{
-	size_t len = 0;
-	while (str[len])
-		len++;
-	return len;
-}
 
 #define VGA_WIDTH   80
 #define VGA_HEIGHT  25
