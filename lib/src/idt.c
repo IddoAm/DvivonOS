@@ -90,10 +90,6 @@ void idt_init(void) {
     _idtr.limit = sizeof(idt) - 1;
     _idtr.base  = (uint32_t)&idt;
 
-    for (int i = 0; i < 256; ++i) {
-        idt[i].isr_low = 0; idt[i].kernel_cs = 0; idt[i].reserved = 0; idt[i].attributes = 0; idt[i].isr_high = 0;
-    }
-
     for (int i = 0; i < 32; i++) {
         idt_set_gate(i, (uint32_t)exceptions[i], 0x08, 0x8E);
     }
