@@ -1,4 +1,4 @@
-#include <string.h>
+#include <lib/string.h>
 
 // compare beatwean tow memories
 int memcmp(const void* aptr, const void* bptr, size_t size) {

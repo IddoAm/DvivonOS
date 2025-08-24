@@ -2,8 +2,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <os.h>
-#include <string.h>
+#include <kernel/os.h>
+#include <lib/string.h>
 
 void vga_clear(void);
 

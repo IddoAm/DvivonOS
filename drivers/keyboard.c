@@ -3,8 +3,8 @@
 #include <stdint.h>
 
 
-#include <keyboard.h>
-#include <os.h>
+#include <drivers/keyboard.h>
+#include <kernel/os.h>
 
 #define KEYBOARD_BUFFER_SIZE 256
 

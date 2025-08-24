@@ -2,11 +2,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <stdio.h>
-#include <gdt.h>
-#include <idt.h>
-#include <keyboard.h>
-#include <vga.h>
+#include <lib/stdio.h>
+#include <arch/i686/gdt.h>
+#include <arch/i686/idt.h>
+#include <drivers/keyboard.h>
+#include <drivers/vga.h>
 
 /* Check if the compiler thinks you are targeting the wrong operating system. */
 #if defined(__linux__)
