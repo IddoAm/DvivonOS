@@ -15,28 +15,18 @@ for arg in "$@"; do
     fi
 done
 
-# Create build folder if missing
-mkdir -p $BUILD_DIR
-cd $BUILD_DIR
+# Run build, pack, and QEMU scripts from scripts directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/scripts"
 
-# Configure CMake if not configured yet
-if [ ! -f Makefile ]; then
-    cmake ..
-fi
+# Build kernel.elf
+"$SCRIPT_DIR/build.sh"
 
-# Build only changed files
-make iso
+# Pack kernel.elf into ISO
+"$SCRIPT_DIR/pack.sh"
 
-# Go back to root
-cd ..
-
-# Run QEMU
+# Run QEMU (pass -d if needed)
 if [ "$DEBUG" -eq 1 ]; then
-    echo "Running QEMU in debug mode..."
-    qemu-system-i386 -cdrom $BUILD_DIR/myos.iso -serial stdio -m 512 -no-reboot -s -S
-    # -s = listen on port 1234 for GDB
-    # -S = freeze CPU at startup, wait for GDB
+    "$SCRIPT_DIR/run_qemu.sh" -d
 else
-    echo "Running QEMU normally..."
-    qemu-system-i386 -cdrom $BUILD_DIR/myos.iso
+    "$SCRIPT_DIR/run_qemu.sh"
 fi
