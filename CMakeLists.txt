@@ -19,6 +19,7 @@ add_subdirectory(lib)
 add_subdirectory(drivers)
 add_subdirectory(arch/i686/cpu)
 add_subdirectory(kernel)
+add_subdirectory(boot)
 
 # compile the kernel to an .elf
 add_executable(kernel.elf "")
@@ -29,6 +30,7 @@ target_link_libraries(kernel.elf
     drivers
     cpu
     kernel
+    boot
 )
 
 # set our mem map
