@@ -8,18 +8,12 @@
 #include <drivers/keyboard.h>
 #include <drivers/vga.h>
 
-/* Check if the compiler thinks you are targeting the wrong operating system. */
-#if defined(__linux__)
-#error "You are not using a cross-compiler, you will most certainly run into trouble"
-#endif
-
-/* This tutorial will only work for the 32-bit ix86 targets. */
-#if !defined(__i386__)
-#error "This tutorial needs to be compiled with a ix86-elf compiler"
-#endif
+#include <boot/loader.h>
 
 void kernel_main(uint32_t magic, uint32_t addr) 
 {
+	loader_init(magic, addr);
+
 	gdt_init();
 	idt_init();
 	
@@ -35,6 +29,21 @@ void kernel_main(uint32_t magic, uint32_t addr)
     stdio_set_interface(&vga_interface);
 	stdio_init();
 	printf("Welcome to Iddo and Hillel amazing os!!!!\n");
+
+	// Print memory map
+	multiboot_mmap_entry_t* mmap = loader_get_memory_map();
+	uint32_t mmap_end = loader_get_memory_map_length() + (uintptr_t)mmap;
+	while ((uintptr_t)mmap < (mmap_end)) {
+    	printf("Region: base=0x%x%x, len=0x%x%x, type=%d\n",
+           (uint32_t)(mmap->addr >> 32), (uint32_t)mmap->addr,
+           (uint32_t)(mmap->len >> 32), (uint32_t)mmap->len,
+           mmap->type);
+
+   		mmap = (multiboot_mmap_entry_t*)((uintptr_t)mmap + mmap->size + sizeof(mmap->size));
+	}
+
+	// Main Loop
+
 	key_event event;
 
 	while(true){
