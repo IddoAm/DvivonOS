@@ -18,9 +18,8 @@
 #error "This tutorial needs to be compiled with a ix86-elf compiler"
 #endif
 
-void kernel_main(void) 
+void kernel_main(uint32_t magic, uint32_t addr) 
 {
-	
 	gdt_init();
 	idt_init();
 	
