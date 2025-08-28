@@ -5,19 +5,28 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/.."
 
-# check if need to export path
+# Ensure cross-compiler is in PATH
 if [[ ":$PATH:" != *":$HOME/opt/cross/bin:"* ]]; then
-    export PATH="$HOME/opt/cross/bin:$PATH"
+	export PATH="$HOME/opt/cross/bin:$PATH"
 fi
+
 BUILD_DIR=build
 
+# If CMake cache references missing source files, wipe build dir.
+# This checks for any source file reference within the CMake cache
+# that doesn't exist in the current source tree.
+if [ -d "$BUILD_DIR" ] && grep -q "\.c" "$BUILD_DIR/CMakeFiles"/* 2>/dev/null; then
+	echo "[INFO] Stale source detected, wiping build dir..."
+	rm -rf "$BUILD_DIR"
+fi
+
 # Create build folder if missing
-mkdir -p $BUILD_DIR
-cd $BUILD_DIR
+mkdir -p "$BUILD_DIR"
+cd "$BUILD_DIR"
 
 # Configure CMake if not configured yet
 if [ ! -f Makefile ]; then
-    cmake ..
+	cmake ..
 fi
 
 # Build kernel.elf only
