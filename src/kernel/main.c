@@ -48,6 +48,22 @@ void kernel_main(uint32_t magic, uint32_t addr)
 
 	pmm_init(loader_get_memory_map(), loader_get_memory_map_length());
 	
+	uint32_t* allocation = (uint32_t*)pmm_alloc_page();
+	*allocation = 5;
+	printf("%d, %x\n", *allocation, allocation);
+	uint32_t* allocation2 = (uint32_t*)pmm_alloc_page();
+	*allocation2 = 5;
+	printf("%d, %x\n", *allocation2, allocation2);
+	printf("freeing second allocation\n");
+
+	pmm_free_page((uintptr_t)allocation2);
+
+
+	allocation2 = (uint32_t*)pmm_alloc_page();
+	*allocation2 = 5;
+	printf("%d, %x\n", *allocation2, allocation2);
+	pmm_free_page((uintptr_t)allocation);
+	pmm_free_page((uintptr_t)allocation2);
 
 	// Main Loop
 

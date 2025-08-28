@@ -11,7 +11,7 @@ extern char _kernel_end[];
 
 void pmm_init(const multiboot_mmap_entry_t* mmap, const uint32_t length);
 
-void* pmm_alloc_page();
-void pmm_free_page(const void* addr);
+uintptr_t pmm_alloc_page();
+void pmm_free_page(const uintptr_t addr);
 
 #endif

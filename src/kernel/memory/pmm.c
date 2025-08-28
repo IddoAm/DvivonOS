@@ -9,6 +9,10 @@ static inline void set_bit(uint32_t bit, uint32_t* bitmap) {
     bitmap[bit / 32] |= (1u << (bit % 32));
 }
 
+static inline int test_bit(uint32_t bit, uint32_t* bitmap) {
+    return (bitmap[bit / 32] >> (bit % 32)) & 1u;
+}
+
 static inline uintptr_t align_up(uintptr_t value, uintptr_t  alignment) {
     return (value + alignment - 1) & ~(alignment - 1);
 }
@@ -19,6 +23,9 @@ static inline uintptr_t align_down(uintptr_t value, uintptr_t  alignment) {
 
 static uint32_t* pmm_bitmap;
 static uint32_t pmm_bitmap_length;
+
+// in words
+static uintptr_t usable_end;
 
 void pmm_init(const multiboot_mmap_entry_t* mmap, uint32_t length) {
     multiboot_mmap_entry_t* entry = (multiboot_mmap_entry_t*)mmap;
@@ -52,6 +59,10 @@ void pmm_init(const multiboot_mmap_entry_t* mmap, uint32_t length) {
         if (entry->type == MULTIBOOT_MEMORY_AVAILABLE) {
             uint64_t start = (entry->addr + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
             uint64_t end   = (entry->addr + entry->len) & ~(PAGE_SIZE - 1);
+            
+            if(usable_end < end){
+                usable_end = end;
+            }
 
             for (uint64_t addr = start; addr < end; addr += PAGE_SIZE) {
                 if (addr < 0x100000000ULL) { // only map first 4GiB in 32-bit mode
@@ -61,6 +72,8 @@ void pmm_init(const multiboot_mmap_entry_t* mmap, uint32_t length) {
         }
         entry = (multiboot_mmap_entry_t*)((uintptr_t)entry + entry->size + sizeof(entry->size));
     }
+
+    usable_end = (usable_end / PAGE_SIZE);
 
     // Reserve kernel + bitmap pages
     uintptr_t kernel_start = align_down((uintptr_t)_kernel_start, PAGE_SIZE);
@@ -72,7 +85,7 @@ void pmm_init(const multiboot_mmap_entry_t* mmap, uint32_t length) {
         set_bit(addr / PAGE_SIZE, pmm_bitmap);
     }
 
-    
+    printf("%d\n", usable_end);
     printf("%d\n", pmm_bitmap_length);
     /*
     for (uint32_t j = 0; j < pmm_bitmap_length; j++) {
@@ -87,3 +100,17 @@ void pmm_init(const multiboot_mmap_entry_t* mmap, uint32_t length) {
     */
 }
 
+uintptr_t pmm_alloc_page(void) {
+    for (uint32_t i = 0; i < usable_end * 32; i++) { 
+        if (!test_bit(i, pmm_bitmap)) {  // free page
+            set_bit(i, pmm_bitmap);      // mark used
+            return (uintptr_t)i * PAGE_SIZE;
+        }
+    }
+    return 0; // out of memory
+}
+
+void pmm_free_page(const uintptr_t addr) {
+    uintptr_t page_index = (uintptr_t)addr / PAGE_SIZE;
+    clear_bit((uint32_t)page_index, pmm_bitmap); // mark free
+}
