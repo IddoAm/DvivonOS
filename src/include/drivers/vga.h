@@ -41,6 +41,7 @@ void vga_move_cursor(size_t row, size_t col);
 size_t vga_get_row(void);
 size_t vga_get_col(void);
 uint8_t vga_get_color(void);
+uint16_t* vga_get_buffer(void); // DANGEROUS BE CAREFUL WITH THIS
 // vga_EOF_func vga_get_eof_handler(void);
 void vga_set_row(size_t row);
 void vga_set_col(size_t col);

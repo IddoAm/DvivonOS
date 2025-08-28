@@ -116,6 +116,10 @@ uint8_t vga_get_color(void) {
     return vga_color;
 }
 
+uint16_t* vga_get_buffer(void) {
+	return vga_buffer;
+}
+
 void vga_set_row(size_t row) {
 	if (row >= VGA_HEIGHT) {
 		vga_row = VGA_HEIGHT - 1;
