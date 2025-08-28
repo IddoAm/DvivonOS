@@ -10,7 +10,12 @@ stdio_interface_t active_interface = {
 };
 
 void stdio_set_interface(stdio_interface_t *interface) {
-    active_interface = *interface;
+    if (interface) {
+        if (interface->clear) active_interface.clear = interface->clear;
+        if (interface->init) active_interface.init = interface->init;
+        if (interface->putc) active_interface.putc = interface->putc;
+        if (interface->puts) active_interface.puts = interface->puts;
+    }
 }
 
 stdio_interface_t *stdio_get_interface(void) {
