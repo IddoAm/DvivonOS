@@ -2,15 +2,14 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <lib/stdio.h>
 #include <arch/i686/gdt.h>
 #include <arch/i686/idt.h>
 #include <drivers/keyboard.h>
-#include <drivers/vga.h>
 
 #include <boot/loader.h>
-
 #include <kernel/pmm.h>
+
+#include <prog/terminal.h>
 
 void kernel_main(uint32_t magic, uint32_t addr) 
 {
@@ -21,16 +20,7 @@ void kernel_main(uint32_t magic, uint32_t addr)
 	
 	irq_register_handler(1, keyboard_callback);
 
-	// todo: move this to terminal file
-    stdio_interface_t vga_interface = {
-        .init = vga_initialize,
-        .clear = vga_clear,
-        .putc = vga_putchar,
-        .puts = vga_writestring
-    };
-    stdio_set_interface(&vga_interface);
-	stdio_init();
-	printf("Welcome to Iddo and Hillel amazing os!!!!\n");
+	terminal_initialize();
 
 	// Print memory map
 	
@@ -54,13 +44,11 @@ void kernel_main(uint32_t magic, uint32_t addr)
 	key_event event;
 
 	while(true){
-
 		if(keyboard_read(&event)){
-			if(event.ascii != 0){
-				putc(event.ascii);
+			if(event.type == KEY_CHAR){
+				terminal_keypress(event);
 			}
 		}
 		__asm__ volatile ("hlt");
 	}
-	
 }
