@@ -10,6 +10,8 @@
 
 #include <boot/loader.h>
 
+#include <kernel/pmm.h>
+
 void kernel_main(uint32_t magic, uint32_t addr) 
 {
 	loader_init(magic, addr);
@@ -18,6 +20,8 @@ void kernel_main(uint32_t magic, uint32_t addr)
 	idt_init();
 	
 	irq_register_handler(1, keyboard_callback);
+
+	pmm_init(loader_get_memory_map(), loader_get_memory_map_length());
 	
 	// todo: move this to terminal file
     stdio_interface_t vga_interface = {
