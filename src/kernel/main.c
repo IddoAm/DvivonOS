@@ -56,8 +56,8 @@ void kernel_main(uint32_t magic, uint32_t addr)
 	while(true){
 
 		if(keyboard_read(&event)){
-			if(event.type == KEY_CHAR){
-				putc(event.c);
+			if(event.ascii != 0){
+				putc(event.ascii);
 			}
 		}
 		__asm__ volatile ("hlt");
