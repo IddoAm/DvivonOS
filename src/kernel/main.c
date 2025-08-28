@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <lib/stdio.h>
 #include <arch/i686/gdt.h>
 #include <arch/i686/idt.h>
 #include <drivers/keyboard.h>
@@ -45,9 +46,7 @@ void kernel_main(uint32_t magic, uint32_t addr)
 
 	while(true){
 		if(keyboard_read(&event)){
-			if(event.type == KEY_CHAR){
-				terminal_keypress(event);
-			}
+			terminal_handle_keypress(event);
 		}
 		__asm__ volatile ("hlt");
 	}

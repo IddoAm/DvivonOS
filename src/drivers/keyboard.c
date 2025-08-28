@@ -189,15 +189,16 @@ static uint8_t _symbol_from_keycode(keycode_t kc, bool shift)
 static uint8_t _ascii_from_keycode(keycode_t kc, bool shift, bool caps, bool ctrl)
 {
     // control combinations: Ctrl+A..Z -> 0x01..0x1A
-    if (ctrl)
-    {
-        if (kc >= KC_A && kc <= KC_Z)
-        {
-            return (uint8_t)(kc - KC_A + 1); // A->1, B->2, ...
-        }
-        if (kc == KC_LEFT)
-            return 0; // non-printable; keep as event only
-    }
+    //! for now we dont need the control key, but if we need in the future we need to change it a bit cuse it scan codes and not the ascii value
+    // if (ctrl)
+    // {
+    //     if (kc >= KC_A && kc <= KC_Z)
+    //     {
+    //         return (uint8_t)(kc - KC_A + 1); // A->1, B->2, ...
+    //     }
+    //     if (kc == KC_LEFT)
+    //         return 0; // non-printable; keep as event only
+    // }
     // printable
     uint8_t ch = _letter_from_keycode(kc, shift, caps);
     if (ch)

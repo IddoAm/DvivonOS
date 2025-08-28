@@ -1,33 +1,45 @@
 #include <lib/stdio.h>
-// #include <vga.h>
+#include <drivers/vga.h>
 
 
-stdio_interface_t *active_interface = NULL;
+stdio_interface_t active_interface = {
+    .clear = NULL,
+    .init = NULL,
+    .putc = NULL,
+    .puts = NULL
+};
 
 void stdio_set_interface(stdio_interface_t *interface) {
-    active_interface = interface;
+    active_interface = *interface;
 }
 
 stdio_interface_t *stdio_get_interface(void) {
-    return active_interface;
+    return &active_interface;
 }
 
 // Modular stdio functions
 void stdio_init(void) {
     // if (!active_interface) active_interface = &vga_interface;
-    if (active_interface && active_interface->init) active_interface->init();
+    if (active_interface.init) {active_interface.init();}
+    else {
+        active_interface.clear = vga_clear;
+        active_interface.putc = vga_putchar;
+        active_interface.puts = vga_writestring;
+        active_interface.init = vga_initialize;
+        active_interface.init();
+    }
 }
 
 void stdio_clear(void) {
-    if (active_interface && active_interface->clear) active_interface->clear();
+    if (active_interface.clear) active_interface.clear();
 }
 
 void putc(char c) {
-    if (active_interface && active_interface->putc) active_interface->putc(c);
+    if (active_interface.putc) active_interface.putc(c);
 }
 
 void puts(const char *str) {
-    if (active_interface && active_interface->puts) active_interface->puts(str);
+    if (active_interface.puts) active_interface.puts(str);
 }
 
 int printf(const char *format, ...) {
