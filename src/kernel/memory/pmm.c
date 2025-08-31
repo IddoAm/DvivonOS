@@ -73,7 +73,7 @@ void pmm_init(const multiboot_mmap_entry_t* mmap, uint32_t length) {
         entry = (multiboot_mmap_entry_t*)((uintptr_t)entry + entry->size + sizeof(entry->size));
     }
 
-    usable_end = (usable_end / PAGE_SIZE);
+    usable_end = (usable_end / PAGE_SIZE / BITMAP_ENTRY_BITS);
 
     // Reserve kernel + bitmap pages
     uintptr_t kernel_start = align_down((uintptr_t)_kernel_start, PAGE_SIZE);
@@ -101,7 +101,7 @@ void pmm_init(const multiboot_mmap_entry_t* mmap, uint32_t length) {
 }
 
 uintptr_t pmm_alloc_page(void) {
-    for (uint32_t i = 0; i < usable_end * 32; i++) { 
+    for (uint32_t i = 0; i < usable_end; i++) { 
         if (!test_bit(i, pmm_bitmap)) {  // free page
             set_bit(i, pmm_bitmap);      // mark used
             return (uintptr_t)i * PAGE_SIZE;
