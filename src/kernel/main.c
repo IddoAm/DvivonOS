@@ -11,6 +11,7 @@
 #include <boot/loader.h>
 
 #include <kernel/pmm.h>
+#include <kernel/vmm.h>
 
 void kernel_main(uint32_t magic, uint32_t addr) 
 {
@@ -47,6 +48,7 @@ void kernel_main(uint32_t magic, uint32_t addr)
 	
 
 	pmm_init(loader_get_memory_map(), loader_get_memory_map_length());
+	vmm_init();
 	
 	uint32_t* allocation = (uint32_t*)pmm_alloc_page();
 	*allocation = 5;
