@@ -1,4 +1,6 @@
 #include <lib/stdio.h>
+#include <lib/string.h>
+#include <lib/exception.h>
 #include <drivers/vga.h>
 
 
@@ -8,6 +10,37 @@ stdio_interface_t active_interface = {
     .putc = NULL,
     .puts = NULL
 };
+
+//only support font color change
+//support three letter colors:
+// red - red
+// blu - blue
+// gre - green
+// lgr - light grey
+// ADD IF WANT MORE
+void _set_color(char* color) {
+    // invalid color code
+    if (strlen(color) != 3) {
+        exception_t invalid_color_exception = {1, "Invalid color code", "Please provide a valid 3-letter color code."};
+        raise_exception(&invalid_color_exception);
+        return;
+    }
+    uint8_t vga_color = vga_get_col();
+    if (memcmp(color, "red", 3) == 0) {
+        vga_color = (vga_color & 0xF0) | VGA_COLOR_RED; // set text color to red
+    } else if (memcmp(color, "blu", 3) == 0) {
+        vga_color = (vga_color & 0xF0) | VGA_COLOR_BLUE; // set text color to blue
+    } else if (memcmp(color, "gre", 3) == 0) {
+        vga_color = (vga_color & 0xF0) | VGA_COLOR_GREEN; // set text color to green
+    } else if (memcmp(color, "lgr", 3) == 0) {
+        vga_color = (vga_color & 0xF0) | VGA_COLOR_LIGHT_GREY; // set text color to light grey
+    } else {
+        exception_t invalid_color_exception = {2, "Invalid color code", "Please provide an existing color code, look at docs."};
+        raise_exception(&invalid_color_exception);
+        return;
+    }
+    vga_set_color(vga_color);
+}
 
 void stdio_set_interface(stdio_interface_t *interface) {
     if (interface) {
@@ -47,7 +80,15 @@ void puts(const char *str) {
     if (active_interface.puts) active_interface.puts(str);
 }
 
+// supported codes:
+// %c - character
+// %s - string
+// %d - decimal
+// %x - hexadecimal
+// %% - percent sign
+// %o - color sign
 int printf(const char *format, ...) {
+    uint8_t vga_color = vga_get_color();
     va_list args;
     va_start(args, format);
     int count = 0;
@@ -92,6 +133,9 @@ int printf(const char *format, ...) {
                     putc(buffer[i]);
                     ++count;
                 }
+            } else if (*p == 'o') {
+                char* color = va_arg(args, char*);
+                _set_color(color);
             } else if (*p == '%') {
                 putc('%');
                 ++count;
@@ -105,6 +149,8 @@ int printf(const char *format, ...) {
             ++count;
         }
     }
+    //restore the color
+    vga_set_color(vga_color);
     va_end(args);
     return count;
 }

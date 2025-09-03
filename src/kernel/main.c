@@ -44,6 +44,10 @@ void kernel_main(uint32_t magic, uint32_t addr)
 
 	key_event event;
 
+	printf("%othis is blue\n", "blu");
+	printf("reguler text\n");
+	printf("%oerror", "dsad");
+	printf("reguler text");
 	while(true){
 		if(keyboard_read(&event)){
 			terminal_handle_keypress(event);
