@@ -63,8 +63,9 @@ void kernel_main(uint32_t magic, uint32_t addr)
 
 
 	allocation2 = (uint32_t*)kernel_vmm_alloc_page();
-	*allocation2 = 5;
+	*allocation2 = 15;
 	printf("%d, %x\n", *allocation2, allocation2);
+	printf("%d, %x\n", *allocation, allocation);
 	kernel_vvmm_free_page((uintptr_t)allocation);
 	kernel_vvmm_free_page((uintptr_t)allocation2);
 

@@ -82,5 +82,5 @@ void pmm_free_page(const uintptr_t addr) {
 }
 
 void adjust_bitmap_address_for_paging(){
-    _pmm_bitmap_start += KERNEL_HIGHER_HALF;
+   
 }

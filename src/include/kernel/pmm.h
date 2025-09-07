@@ -3,7 +3,7 @@
 
 #include <boot/multiboot.h>
 
-extern uint32_t* _pmm_bitmap_start;
+extern uint32_t _pmm_bitmap_start[];
 
 #define BITMAP_ENTRY_BITS 32
 
