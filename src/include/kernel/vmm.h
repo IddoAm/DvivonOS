@@ -32,6 +32,7 @@ extern uint32_t _page_tables_start[];
 
 
 extern void enable_paging(uint32_t page_directory_phys, uint32_t kernel_entry);
+extern void reload_cr3(uint32_t cr3_phys);
 
 
 void vmm_init();

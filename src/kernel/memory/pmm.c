@@ -80,3 +80,7 @@ void pmm_free_page(const uintptr_t addr) {
     uintptr_t page_index = (uintptr_t)addr / PAGE_SIZE;
     clear_bit((uint32_t)page_index, _pmm_bitmap_start); // mark free
 }
+
+void adjust_bitmap_address_for_paging(){
+    _pmm_bitmap_start += KERNEL_HIGHER_HALF;
+}

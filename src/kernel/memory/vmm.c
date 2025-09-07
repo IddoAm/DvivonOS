@@ -3,39 +3,44 @@
 #include <kernel/memory_defs.h>
 #include <kernel/pmm.h>
 #include <lib/stdio.h>
+#include <lib/string.h>>
 
-void vmm_init() {
-    uint32_t page_directory_start_index = PAGE_DIR_TABLE_SIZE - PAGE_TABLE_COUNT; // 768
-    uint32_t kernel_send_pages = ((uintptr_t)_kernel_end + PAGE_SIZE - 1) / PAGE_SIZE;
+void vmm_init(void)
+{
+    const uint32_t phys_base = (uint32_t)_kernel_start; 
+    const uint32_t phys_end  = (uint32_t)_kernel_end;
 
-    /*
-    for(int i = page_directory_start_index; i < page_directory_start_index + kernel_size_pages; i++) {
-        uint32_t phys_addr = (uint32_t)_kernel_start + (i*PAGE_SIZE);
-        set_page_entry(&_page_tables_start[i-page_directory_start_index], phys_addr, PAGE_PRESENT | PAGE_RW);
-    }
-    */
+    // Step 0: identity range
+    const uint32_t identity_end    = (phys_end + PAGE_TABLE_SIZE - 1) & ~(PAGE_TABLE_SIZE - 1);
+    const uint32_t identity_pages  = identity_end / PAGE_SIZE;
+    const uint32_t identity_tables = (identity_pages + PT_ENTRIES - 1) / PT_ENTRIES;
 
-    // Fill page tables 
-    for(int i = 0; i < kernel_send_pages; i++) {
-        uint32_t phys_addr = i * PAGE_SIZE;
-        set_page_entry(&_page_tables_start[i], phys_addr, PAGE_PRESENT | PAGE_RW);
-    }
-
-    // Fill page diretory identity
-    for(int i = 0; i < PAGE_TABLE_COUNT; i++){
-        uint32_t phys_addr = (uint32_t)_page_tables_start + (i*PAGE_SIZE);
-        set_page_entry(&_page_directory_start[i], phys_addr, PAGE_PRESENT | PAGE_RW);
+    // Step 1: fill identity PTEs
+    for (uint32_t i = 0; i < identity_pages; i++) {
+        set_page_entry(&_page_tables_start[i], i * PAGE_SIZE, PAGE_PRESENT | PAGE_RW);
     }
 
-    // Fill page diretory higher half
-    for(int i = 0; i < PAGE_TABLE_COUNT; i++){
-        uint32_t phys_addr = (uint32_t)_page_tables_start + (i*PAGE_SIZE);
-        set_page_entry(&_page_directory_start[i+page_directory_start_index], phys_addr, PAGE_PRESENT | PAGE_RW);
+    // Step 2: link PDEs for identity
+    for (uint32_t t = 0; t < identity_tables; t++) {
+        set_page_entry(&_page_directory_start[t],
+                       (uint32_t)_page_tables_start + t * PAGE_SIZE,
+                       PAGE_PRESENT | PAGE_RW);
     }
 
-    uint32_t virtual_kernel_offset = KERNEL_HIGHER_HALF - (uint32_t)_kernel_start;
-    enable_paging((uint32_t)_page_directory_start, virtual_kernel_offset);
 
-    printf("Paging enabled\n");
+    // Step 3: mirror into higher-half
+    const uint32_t HH_PDE = PD_ENTRIES - PAGE_TABLE_COUNT; // 768
+    for (uint32_t t = 0; t < identity_tables; t++) {
+        set_page_entry(&_page_directory_start[HH_PDE + t],
+                       (uint32_t)_page_tables_start + t * PAGE_SIZE,
+                       PAGE_PRESENT | PAGE_RW);
+    }
+    
+    // Step 4: enable paging
+    enable_paging((uint32_t)_page_directory_start, KERNEL_HIGHER_HALF);
+
+    // TODO: Remove the identity mapping
+
     paging_enabled = true;
+    adjust_bitmap_address_for_paging();
 }
