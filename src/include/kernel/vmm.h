@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 typedef uint32_t page_table_entry_t;
+typedef uintptr_t free_list_node_t;
 
 #define PAGE_PRESENT   0x001
 #define PAGE_RW        0x002
@@ -32,7 +33,6 @@ extern uint32_t _page_tables_start[];
 
 
 extern void enable_paging(uint32_t page_directory_phys, uint32_t kernel_entry);
-extern void reload_cr3(uint32_t cr3_phys);
 
 
 void vmm_init();

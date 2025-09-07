@@ -8,6 +8,7 @@
 #include <lib/stdio.h>
 
 #define KERNEL_HIGHER_HALF 0xC0000000
+#define MEMORY_SPACE (1UL << 32)
 
 #define PAGE_SIZE 4096
 #define MAX_PAGES 1048576               // 4GB / 4KB pages
