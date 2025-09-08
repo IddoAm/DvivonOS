@@ -12,6 +12,7 @@
 
 #include <kernel/pmm.h>
 #include <kernel/vmm.h>
+#include <kernel/heap_allocator.h>
 
 void kernel_main(uint32_t magic, uint32_t addr) 
 {
@@ -50,24 +51,24 @@ void kernel_main(uint32_t magic, uint32_t addr)
 	pmm_init(loader_get_memory_map(), loader_get_memory_map_length());
 	vmm_init();
 	
-	uint32_t* allocation = (uint32_t*)kernel_vmm_alloc_page();
+	uint32_t* allocation = (uint32_t*)kmalloc(sizeof(uint32_t));
 	*allocation = 5;
 	printf("%d, %x\n", *allocation, allocation);
-	uint32_t* allocation2 = (uint32_t*)kernel_vmm_alloc_page();
+	uint32_t* allocation2 = (uint32_t*)kmalloc(sizeof(uint32_t));
 	*allocation2 = 10;
 	printf("%d, %x\n", *allocation2, allocation2);
 	printf("%d, %x\n", *allocation, allocation);
 	printf("freeing second allocation\n");
 
-	kernel_vvmm_free_page((uintptr_t)allocation2);
+	kfree((uintptr_t)allocation2);
 
 
-	allocation2 = (uint32_t*)kernel_vmm_alloc_page();
+	allocation2 = (uint32_t*)kmalloc(sizeof(uint32_t));
 	*allocation2 = 15;
 	printf("%d, %x\n", *allocation2, allocation2);
 	printf("%d, %x\n", *allocation, allocation);
-	kernel_vvmm_free_page((uintptr_t)allocation);
-	kernel_vvmm_free_page((uintptr_t)allocation2);
+	kfree((uintptr_t)allocation);
+	kfree((uintptr_t)allocation2);
 
 	// Main Loop
 
