@@ -4,7 +4,6 @@
 #include <stdint.h>
 
 typedef uint32_t page_table_entry_t;
-typedef uintptr_t free_list_node_t;
 
 #define PAGE_PRESENT   0x001
 #define PAGE_RW        0x002
@@ -15,6 +14,8 @@ typedef uintptr_t free_list_node_t;
 #define PAGE_DIRTY     0x040
 #define PAGE_4MB       0x080
 #define PAGE_GLOBAL    0x100
+
+static const uint32_t VMM_FREE_LIST_MAX_SIZE = 512;
 
 static inline void set_page_entry(page_table_entry_t *entry, uintptr_t phys_addr, uint32_t flags) {
     *entry = (phys_addr & 0xFFFFF000) | (flags & 0xFFF);
@@ -36,6 +37,18 @@ extern void enable_paging(uint32_t page_directory_phys, uint32_t kernel_entry);
 
 
 void vmm_init();
+
+typedef struct free_list_node {
+    struct free_list_node* next;
+    struct free_list_node* prev;
+} free_list_node_t;
+
+typedef struct free_list {
+    free_list_node_t* head;
+    free_list_node_t* tail;
+    uint32_t count;
+} free_list_t;
+
 
 uintptr_t kernel_vmm_alloc_page();
 void kernel_vvmm_free_page(const uintptr_t addr);

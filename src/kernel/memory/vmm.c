@@ -136,18 +136,56 @@ static inline void vmm_unmap_page(uint32_t vaddr) {
     __asm__ volatile("invlpg (%0)" ::"r"(vaddr) : "memory");
 }
 
-static free_list_node_t* head; 
-static free_list_node_t* tail; 
+static free_list_t free_list;
 
 static uintptr_t last_free = KERNEL_HIGHER_HALF;
 
+// Adds a node to the head of the list
+void free_list_add(free_list_t* list, free_list_node_t* node) {
+    node->next = list->head;
+    node->prev = NULL;
+
+    if (list->head)
+        list->head->prev = node;
+    else
+        list->tail = node;  // first element
+
+    list->head = node;
+    list->count++;
+}
+
+// Pops a node from the tail of the list. Returns NULL if empty.
+free_list_node_t* free_list_pop(free_list_t* list) {
+    if (!list->tail)
+        return NULL;  // empty list
+
+    free_list_node_t* node = list->tail;
+    list->tail = node->prev;
+
+    if (list->tail)
+        list->tail->next = NULL;
+    else
+        list->head = NULL;  // list is now empty
+
+    node->next = node->prev = NULL;
+    list->count--;
+
+    return node;
+}
+
 uintptr_t kernel_vmm_alloc_page(){
+    if (free_list.count > 0) {
+        printf("Allocating from free_list\n");
+        return (uintptr_t)free_list_pop(&free_list);
+    }
+
     uintptr_t i = last_free;
     do {
         if (!vmm_is_mapped(i)) {
             uintptr_t phys_addr = pmm_alloc_page();
             printf("Allocating phys_addr: %x for vaddr: %x\n", phys_addr, i);
             vmm_map_kernel_hh(i, phys_addr, PAGE_PRESENT | PAGE_RW);
+            memset((void*)i, 0, PAGE_SIZE);
             last_free = i;
             return i;
         }
@@ -155,14 +193,24 @@ uintptr_t kernel_vmm_alloc_page(){
         i += PAGE_SIZE;
         if (i >= MEMORY_SPACE) i = KERNEL_HIGHER_HALF;
 
-    } while (i != last_free - PAGE_SIZE);
+    } while (i != last_free);
 
     return 0; // Failed to allocate
     
 }
 
 void kernel_vvmm_free_page(const uintptr_t addr){
-    uintptr_t phys_addr = vmm_virt_to_phys(addr);
-    pmm_free_page(phys_addr);
-    vmm_unmap_page(addr);
+    free_list_node_t* node = (free_list_node_t*)addr;
+
+    free_list_add(&free_list, node);
+
+    if (free_list.count > VMM_FREE_LIST_MAX_SIZE) {
+        free_list_node_t* to_free = free_list_pop(&free_list);
+        uintptr_t phys_addr = vmm_virt_to_phys((uintptr_t)to_free);
+        pmm_free_page(phys_addr);
+        vmm_unmap_page((uintptr_t)to_free);
+    }
+
+    printf("Freeing vaddr: %x which maps to phys_addr: %x\n", addr, vmm_virt_to_phys(addr));
+    printf("free_list.count = %d\n", free_list.count);
 }
