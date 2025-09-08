@@ -36,3 +36,39 @@ add_custom_target(iso
     COMMAND grub-mkrescue -o ${CMAKE_BINARY_DIR}/myos.iso ${CMAKE_SOURCE_DIR}/iso
     DEPENDS kernel.elf
 )
+
+# bootloader flat binary (boot.bin)
+set(BOOT_ASM ${CMAKE_SOURCE_DIR}/bootloader/boot.s)
+set(BOOT_LD  ${CMAKE_SOURCE_DIR}/bootloader/bootloader.ld)
+set(BOOT_O   ${CMAKE_BINARY_DIR}/bootloader/boot.o)
+set(BOOT_ELF ${CMAKE_BINARY_DIR}/bootloader/boot.elf)
+set(BOOT_BIN ${CMAKE_BINARY_DIR}/bootloader/boot.bin)
+
+add_custom_command(
+    OUTPUT ${BOOT_O}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/bootloader
+    COMMAND ${CMAKE_ASM_COMPILER} -o ${BOOT_O} ${BOOT_ASM}
+    DEPENDS ${BOOT_ASM}
+    VERBATIM
+)
+
+add_custom_command(
+    OUTPUT ${BOOT_ELF}
+    COMMAND i686-elf-ld -m elf_i386 -T ${BOOT_LD} -nostdlib -n -o ${BOOT_ELF} ${BOOT_O}
+    DEPENDS ${BOOT_O} ${BOOT_LD}
+    VERBATIM
+)
+
+add_custom_command(
+    OUTPUT ${BOOT_BIN}
+    COMMAND i686-elf-objcopy -O binary ${BOOT_ELF} ${BOOT_BIN}
+    DEPENDS ${BOOT_ELF}
+    VERBATIM
+)
+
+add_custom_target(bootloader ALL DEPENDS ${BOOT_BIN})
+
+add_custom_target(run_bootloader
+    COMMAND qemu-system-i386 -drive file=${BOOT_BIN},format=raw,if=floppy
+    DEPENDS bootloader
+)
