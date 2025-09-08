@@ -15,7 +15,7 @@ typedef uint32_t page_table_entry_t;
 #define PAGE_4MB       0x080
 #define PAGE_GLOBAL    0x100
 
-static const uint32_t VMM_FREE_LIST_MAX_SIZE = 512;
+static const uint32_t VMM_FREE_LIST_MAX_SIZE = 128;
 
 static inline void set_page_entry(page_table_entry_t *entry, uintptr_t phys_addr, uint32_t flags) {
     *entry = (phys_addr & 0xFFFFF000) | (flags & 0xFFF);
