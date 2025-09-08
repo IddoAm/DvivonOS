@@ -66,15 +66,27 @@ void pmm_init(const multiboot_mmap_entry_t* mmap, uint32_t length) {
     */
 }
 
+uint32_t last_alloc = 0;
+
 uintptr_t pmm_alloc_page(void) {
-    for (uint32_t i = 0; i < usable_end; i++) { 
-        if (!test_bit(i, _pmm_bitmap_start)) {  // free page
-            set_bit(i, _pmm_bitmap_start);      // mark used
+    uint32_t i = last_alloc;
+
+    do {
+        if (!test_bit(i, _pmm_bitmap_start)) {
+            set_bit(i, _pmm_bitmap_start);      
+            last_alloc = (i + 1) % usable_end;  
             return (uintptr_t)i * PAGE_SIZE;
         }
-    }
-    return 0; // out of memory
+
+        i++;
+        if (i >= usable_end)
+            i = 0;
+
+    } while (i != last_alloc);
+
+    return 0; // no free pages found
 }
+
 
 void pmm_free_page(const uintptr_t addr) {
     uintptr_t page_index = (uintptr_t)addr / PAGE_SIZE;
