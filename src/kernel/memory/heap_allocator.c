@@ -31,6 +31,8 @@ uintptr_t allocate_new_heap_page(){
     heap_pages++;
 
     free_block_header_t* new_block = (free_block_header_t*)page;
+    SET_SIZE(new_block, PAGE_SIZE);
+    SET_FREE(new_block);
 
     add_free_block(new_block);
     

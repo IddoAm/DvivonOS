@@ -2,7 +2,7 @@
 #include <kernel/memory_defs.h>
 #include <kernel/pmm.h>
 #include <lib/stdio.h>
-#include <lib/string.h>>
+#include <lib/string.h>
 
 static uint32_t* page_directory_hh;
 
