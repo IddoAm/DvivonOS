@@ -1,123 +1,134 @@
-#include<kernel/heap_allocator.h>
+#include <kernel/heap_allocator.h>
 
-void add_free_block(free_block_header_t* block){
+static inline block_header_t* get_footer(block_header_t* header) {
+    return (block_header_t*)((uintptr_t)header + GET_SIZE(header) - sizeof(block_header_t));
+}
+
+static free_block_header_t* create_free_block(uintptr_t addr, uint32_t size) {
+    free_block_header_t* block = (free_block_header_t*)addr;
+    SET_SIZE(block, size);
+    SET_FREE(block);
+
+    block_header_t* footer = get_footer((block_header_t*)block);
+    footer->size_and_flags = block->size_and_flags;
+
+    block->next_free = block->prev_free = NULL;
+    return block;
+}
+
+static inline void add_free_block(free_block_header_t* block) {
     block->next_free = free_list_head;
-    if(free_list_head){
-        free_list_head->prev_free = block;
-    }
+    if (free_list_head) free_list_head->prev_free = block;
     block->prev_free = NULL;
     free_list_head = block;
 }
 
-void remove_free_block(free_block_header_t* block){
-    if(block->prev_free){
-        block->prev_free->next_free = block->next_free;
-    }else{
-        free_list_head = block->next_free;
-    }
+static inline void remove_free_block(free_block_header_t* block) {
+    if (block->prev_free) block->prev_free->next_free = block->next_free;
+    else free_list_head = block->next_free;
+    if (block->next_free) block->next_free->prev_free = block->prev_free;
+    block->next_free = block->prev_free = NULL;
+}
 
-    if(block->next_free){
-        block->next_free->prev_free = block->prev_free;
+static inline void update_footer(block_header_t* header) {
+    block_header_t* footer = get_footer(header);
+    footer->size_and_flags = header->size_and_flags;
+}
+
+static inline void coalesce_blocks(free_block_header_t* a, free_block_header_t* b) {
+    remove_free_block(b);
+    SET_SIZE(a, GET_SIZE(a) + GET_SIZE(b));
+    SET_FREE(a);
+    update_footer((block_header_t*)a);
+}
+
+static inline void coalesce_with_next(free_block_header_t* block) {
+    uintptr_t next_addr = (uintptr_t)block + GET_SIZE(block);
+    if (next_addr >= (uintptr_t)MEMORY_SPACE) return;
+
+    block_header_t* next_header = (block_header_t*)next_addr;
+    if (IS_FREE(next_header)) {
+        coalesce_blocks(block, (free_block_header_t*)next_header);
     }
 }
 
-uintptr_t allocate_new_heap_page(){
-    uintptr_t page = kernel_vmm_alloc_page();
+static inline void coalesce_with_prev(free_block_header_t* block) {
+    block_header_t* prev_footer = (block_header_t*)((uintptr_t)block - sizeof(block_header_t));
+    if ((uintptr_t)prev_footer <= 0 || !IS_FREE(prev_footer)) return;
 
-    if(!page){
-       return 0; // Allocation failed
-    }
+    free_block_header_t* prev_block =
+        (free_block_header_t*)((uintptr_t)block - GET_SIZE(prev_footer));
+    coalesce_blocks(prev_block, block);
+}
+
+static free_block_header_t* split_block(free_block_header_t* block, uint32_t want_size) {
+    uint32_t current_size = GET_SIZE(block);
+    if (current_size < want_size + sizeof(free_block_header_t)) return NULL;
+
+    uintptr_t new_addr = (uintptr_t)block + want_size;
+    uint32_t new_size = current_size - want_size;
+
+    SET_SIZE(block, want_size);
+    update_footer((block_header_t*)block);
+
+    free_block_header_t* new_block = create_free_block(new_addr, new_size);
+    add_free_block(new_block);
+
+    return new_block;
+}
+
+static uintptr_t allocate_new_heap_page(void) {
+    uintptr_t page = kernel_vmm_alloc_page();
+    if (!page) return 0;
 
     heap_pages++;
-
-    free_block_header_t* new_block = (free_block_header_t*)page;
-    SET_SIZE(new_block, PAGE_SIZE);
-    SET_FREE(new_block);
-
-    add_free_block(new_block);
-    
+    free_block_header_t* block = create_free_block(page, PAGE_SIZE);
+    add_free_block(block);
+    coalesce_with_prev(block);
     return page;
-}   
-
-uintptr_t kmalloc(uint32_t size){
-    // Align size to BLOCK_ALIGN
-    size = ALIGN_UP(size);
-    // Include header size
-    size += sizeof(block_header_t);
-
-    if(size < sizeof(free_block_header_t)){
-        size = sizeof(free_block_header_t);
-    }
-
-    if(free_list_head == NULL){
-        if(!allocate_new_heap_page()){
-            return 0; // Allocation failed
-        }
-    }
-
-    free_block_header_t* current = free_list_head;
-    while(current){
-        uint32_t current_size = GET_SIZE(current);
-        if(current_size >= size) {
-            // Found a suitable block
-            remove_free_block(current);
-            CLEAR_FREE(current);
-
-            if(current_size > size + sizeof(free_block_header_t)){
-                // Split the block
-                free_block_header_t* new_block = (free_block_header_t*)((uintptr_t)current + size);
-                SET_SIZE(new_block, current_size - size);
-                SET_FREE(new_block);
-                add_free_block(new_block);
-                
-
-                SET_SIZE(current, size);
-            }
-
-            return (uintptr_t)current + sizeof(block_header_t);
-        }
-        current = current->next_free;
-    }
-
-    // No suitable block found, allocate a new page
-    if(!allocate_new_heap_page()){
-        return 0; // Allocation failed
-    }
-
-    return kmalloc(size - sizeof(block_header_t)); // Retry allocation
 }
 
-void kfree(uintptr_t ptr){
-    if(ptr == 0) return;
+uintptr_t kmalloc(uint32_t size) {
+    if (size == 0) return 0;
 
-    block_header_t* header = (block_header_t*)(ptr - sizeof(block_header_t));
-    free_block_header_t* block = (free_block_header_t*)header;
+    size = ALIGN_UP(size);
+    size += sizeof(block_header_t);
+    if (size < sizeof(free_block_header_t)) size = sizeof(free_block_header_t);
 
+    if (!free_list_head) {
+        if (!allocate_new_heap_page()) return 0;
+    }
+
+    free_block_header_t* cur = free_list_head;
+    while (cur) {
+        uint32_t current_size = GET_SIZE(cur);
+        if (current_size >= size) {
+            remove_free_block(cur);
+            CLEAR_FREE(cur);
+
+            if (current_size >= size + sizeof(free_block_header_t)) {
+                split_block(cur, size);
+            } else {
+                update_footer((block_header_t*)cur);
+            }
+
+            return (uintptr_t)cur + sizeof(block_header_t);
+        }
+        cur = cur->next_free;
+    }
+
+    if (!allocate_new_heap_page()) return 0;
+    return kmalloc(size - sizeof(block_header_t));
+}
+
+void kfree(uintptr_t ptr) {
+    if (!ptr) return;
+
+    free_block_header_t* block = (free_block_header_t*)(ptr - sizeof(block_header_t));
     SET_FREE(block);
+    update_footer((block_header_t*)block);
+
     add_free_block(block);
-
-    // Coalescing with next block
-    uintptr_t next_addr = (uintptr_t)block + GET_SIZE(block);
-    if(next_addr < MEMORY_SPACE){
-        block_header_t* next_header = (block_header_t*)next_addr;
-        if(IS_FREE(next_header)){
-            free_block_header_t* next_block = (free_block_header_t*)next_header;
-            remove_free_block(next_block);
-            SET_SIZE(block, GET_SIZE(block) + GET_SIZE(next_block));
-        }
-    }
-
-    // Coalescing with previous block
-    free_block_header_t* current = free_list_head;
-    while(current){
-        uintptr_t current_end = (uintptr_t)current + GET_SIZE(current);
-        if(current_end == (uintptr_t)block){
-            // Found previous block
-            remove_free_block(current);
-            SET_SIZE(current, GET_SIZE(current) + GET_SIZE(block));
-            add_free_block(current);
-            break;
-        }
-        current = current->next_free;
-    }
+    coalesce_with_prev(block);
+    coalesce_with_next(block);
 }
