@@ -15,7 +15,7 @@ static inline int test_bit(uint32_t bit, uint32_t* bitmap) {
 }
 
 // in words
-static uintptr_t usable_end;
+static uint32_t usable_end_words;
 
 void pmm_init(const multiboot_mmap_entry_t* mmap, uint32_t length) {
     multiboot_mmap_entry_t* entry = (multiboot_mmap_entry_t*)mmap;
@@ -26,6 +26,7 @@ void pmm_init(const multiboot_mmap_entry_t* mmap, uint32_t length) {
         _pmm_bitmap_start[i] = 0xFFFFFFFF;
     }
 
+    uint64_t usable_end = 0;
     // Mark free pages in bitmap
     while ((uintptr_t)entry < mmap_end) {
         if (entry->type == MULTIBOOT_MEMORY_AVAILABLE) {
@@ -45,14 +46,15 @@ void pmm_init(const multiboot_mmap_entry_t* mmap, uint32_t length) {
         entry = (multiboot_mmap_entry_t*)((uintptr_t)entry + entry->size + sizeof(entry->size));
     }
 
-    usable_end = (usable_end / PAGE_SIZE / BITMAP_ENTRY_BITS);
+    usable_end_words = (usable_end / PAGE_SIZE / BITMAP_ENTRY_BITS);
 
     // Reserve kernel memory
     for (uintptr_t addr = (uintptr_t)_kernel_start; addr < (uintptr_t)_kernel_end; addr += PAGE_SIZE) {
         set_bit(addr / PAGE_SIZE, _pmm_bitmap_start);
     }
 
-    printf("%d\n", usable_end);
+    printf("%d\n", usable_end_words);
+    printf("bitmap size in words: %d\n", MEMORY_SPACE / PAGE_SIZE / BITMAP_ENTRY_BITS);
     /*
     for (uint32_t j = 0; j < _pmm_bitmap_start_length; j++) {
         if(_pmm_bitmap_start[j] == 0xFFFFFFFF){
@@ -72,14 +74,16 @@ uintptr_t pmm_alloc_page(void) {
     uint32_t i = last_alloc;
 
     do {
-        if (!test_bit(i, _pmm_bitmap_start)) {
-            set_bit(i, _pmm_bitmap_start);      
-            last_alloc = (i + 1) % usable_end;  
-            return (uintptr_t)i * PAGE_SIZE;
+        uint32_t word = _pmm_bitmap_start[i];
+        if (word != 0xFFFFFFFF) {
+            int bit = __builtin_ffs(~word) - 1;  // first zero bit
+            _pmm_bitmap_start[i] |= (1u << bit);
+            last_alloc = (i + 1) >= usable_end_words ? 0 : (i + 1);
+            return ((uintptr_t)i * 32 + bit) * PAGE_SIZE;
         }
 
         i++;
-        if (i >= usable_end)
+        if (i >= usable_end_words)
             i = 0;
 
     } while (i != last_alloc);
