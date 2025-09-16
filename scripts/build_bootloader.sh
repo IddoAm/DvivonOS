@@ -11,9 +11,9 @@ BUILD_DIR="$ROOT_DIR/build"
 cmake -S "$ROOT_DIR" -B "$BUILD_DIR"
 cmake --build "$BUILD_DIR" --target bootloader -j
 
-BOOT_BIN="$BUILD_DIR/bootloader/boot.bin"
+BOOT_BIN="$BUILD_DIR/bootloader/boot.img"
 if [ ! -f "$BOOT_BIN" ]; then
-  echo "[ERROR] boot.bin not found at $BOOT_BIN" >&2
+  echo "[ERROR] boot.img not found at $BOOT_BIN" >&2
   exit 1
 fi
 

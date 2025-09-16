@@ -66,9 +66,70 @@ add_custom_command(
     VERBATIM
 )
 
-add_custom_target(bootloader ALL DEPENDS ${BOOT_BIN})
+# Stage 1
+set(STAGE1_ASM ${CMAKE_SOURCE_DIR}/bootloader/stage1.s)
+set(STAGE1_O   ${CMAKE_BINARY_DIR}/bootloader/stage1.o)
+set(STAGE1_ELF ${CMAKE_BINARY_DIR}/bootloader/stage1.elf)
+set(STAGE1_BIN ${CMAKE_BINARY_DIR}/bootloader/stage1.bin)
+
+add_custom_command(
+    OUTPUT ${STAGE1_O}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/bootloader
+    COMMAND ${CMAKE_ASM_COMPILER} -o ${STAGE1_O} ${STAGE1_ASM}
+    DEPENDS ${STAGE1_ASM}
+    VERBATIM
+)
+add_custom_command(
+    OUTPUT ${STAGE1_ELF}
+    COMMAND i686-elf-ld -m elf_i386 -T ${BOOT_LD} -nostdlib -n -o ${STAGE1_ELF} ${STAGE1_O}
+    DEPENDS ${STAGE1_O} ${BOOT_LD}
+    VERBATIM
+)
+add_custom_command(
+    OUTPUT ${STAGE1_BIN}
+    COMMAND i686-elf-objcopy -O binary ${STAGE1_ELF} ${STAGE1_BIN}
+    DEPENDS ${STAGE1_ELF}
+    VERBATIM
+)
+
+# Stage 2
+set(STAGE2_ASM ${CMAKE_SOURCE_DIR}/bootloader/stage2.s)
+set(STAGE2_O   ${CMAKE_BINARY_DIR}/bootloader/stage2.o)
+set(STAGE2_ELF ${CMAKE_BINARY_DIR}/bootloader/stage2.elf)
+set(STAGE2_BIN ${CMAKE_BINARY_DIR}/bootloader/stage2.bin)
+
+add_custom_command(
+    OUTPUT ${STAGE2_O}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/bootloader
+    COMMAND ${CMAKE_ASM_COMPILER} -o ${STAGE2_O} ${STAGE2_ASM}
+    DEPENDS ${STAGE2_ASM}
+    VERBATIM
+)
+add_custom_command(
+    OUTPUT ${STAGE2_ELF}
+    COMMAND i686-elf-ld -m elf_i386 -T ${BOOT_LD} -nostdlib -n -Ttext 0x1000 -o ${STAGE2_ELF} ${STAGE2_O}
+    DEPENDS ${STAGE2_O} ${BOOT_LD}
+    VERBATIM
+)
+add_custom_command(
+    OUTPUT ${STAGE2_BIN}
+    COMMAND i686-elf-objcopy -O binary ${STAGE2_ELF} ${STAGE2_BIN}
+    DEPENDS ${STAGE2_ELF}
+    VERBATIM
+)
+
+# Concatenate both stages into a single image
+set(BOOT_IMG ${CMAKE_BINARY_DIR}/bootloader/boot.img)
+add_custom_command(
+    OUTPUT ${BOOT_IMG}
+    COMMAND cat ${STAGE1_BIN} ${STAGE2_BIN} > ${BOOT_IMG}
+    DEPENDS ${STAGE1_BIN} ${STAGE2_BIN}
+    VERBATIM
+)
+
+add_custom_target(bootloader ALL DEPENDS ${BOOT_IMG})
 
 add_custom_target(run_bootloader
-    COMMAND qemu-system-i386 -drive file=${BOOT_BIN},format=raw,if=floppy
+    COMMAND qemu-system-i386 -drive file=${BOOT_IMG},format=raw,if=floppy
     DEPENDS bootloader
 )
