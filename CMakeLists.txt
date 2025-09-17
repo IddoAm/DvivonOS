@@ -66,7 +66,7 @@ add_custom_command(
     VERBATIM
 )
 
-# Stage 1
+# Stage 1 - Boot sector (512 bytes, loaded at 0x7C00)
 set(STAGE1_ASM ${CMAKE_SOURCE_DIR}/bootloader/stage1.s)
 set(STAGE1_O   ${CMAKE_BINARY_DIR}/bootloader/stage1.o)
 set(STAGE1_ELF ${CMAKE_BINARY_DIR}/bootloader/stage1.elf)
@@ -92,7 +92,7 @@ add_custom_command(
     VERBATIM
 )
 
-# Stage 2
+# Stage 2 - Second stage bootloader (loaded at 0x7E00)
 set(STAGE2_ASM ${CMAKE_SOURCE_DIR}/bootloader/stage2.s)
 set(STAGE2_O   ${CMAKE_BINARY_DIR}/bootloader/stage2.o)
 set(STAGE2_ELF ${CMAKE_BINARY_DIR}/bootloader/stage2.elf)
@@ -107,7 +107,7 @@ add_custom_command(
 )
 add_custom_command(
     OUTPUT ${STAGE2_ELF}
-    COMMAND i686-elf-ld -m elf_i386 -T ${BOOT_LD} -nostdlib -n -Ttext 0x1000 -o ${STAGE2_ELF} ${STAGE2_O}
+    COMMAND i686-elf-ld -m elf_i386 -T ${BOOT_LD} -nostdlib -n -o ${STAGE2_ELF} ${STAGE2_O}
     DEPENDS ${STAGE2_O} ${BOOT_LD}
     VERBATIM
 )
@@ -118,7 +118,7 @@ add_custom_command(
     VERBATIM
 )
 
-# Concatenate both stages into a single image
+# Create bootable floppy image (1.44MB)
 set(BOOT_IMG ${CMAKE_BINARY_DIR}/bootloader/boot.img)
 add_custom_command(
     OUTPUT ${BOOT_IMG}
@@ -129,7 +129,25 @@ add_custom_command(
 
 add_custom_target(bootloader ALL DEPENDS ${BOOT_IMG})
 
+# Create a complete bootable image with kernel
+set(COMPLETE_IMG ${CMAKE_BINARY_DIR}/bootloader/complete.img)
+add_custom_command(
+    OUTPUT ${COMPLETE_IMG}
+    COMMAND ${CMAKE_COMMAND} -E copy ${BOOT_IMG} ${COMPLETE_IMG}
+    # Add kernel to sectors 3+ (after stage1 and stage2)
+    COMMAND dd if=${CMAKE_BINARY_DIR}/kernel.elf of=${COMPLETE_IMG} bs=512 seek=3 conv=notrunc || true
+    DEPENDS ${BOOT_IMG} kernel.elf
+    VERBATIM
+)
+
+add_custom_target(complete_bootloader DEPENDS ${COMPLETE_IMG})
+
 add_custom_target(run_bootloader
     COMMAND qemu-system-i386 -drive file=${BOOT_IMG},format=raw,if=floppy
     DEPENDS bootloader
+)
+
+add_custom_target(run_complete
+    COMMAND qemu-system-i386 -drive file=${COMPLETE_IMG},format=raw,if=floppy
+    DEPENDS complete_bootloader
 )

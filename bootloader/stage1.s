@@ -1,11 +1,9 @@
 .code16
 
 _start_label:
-    jmp _start
-
 .equ SECTOR_AMOUNT, 1
 .equ SECTOR_START, 2
-.equ KERNEL_OFFSET, 0x1000
+.equ STAGE_TWO_OFFSET, 0x7E00
 
 _start:
     cli
@@ -20,7 +18,7 @@ _start:
     call print
     movw $0x0000, %ax
     movw %ax, %es
-    movw $KERNEL_OFFSET, %bx
+    movw $STAGE_TWO_OFFSET, %bx
     movb $SECTOR_AMOUNT, %bl
     movb $SECTOR_START, %cl
     movb $0x00, %ch
@@ -41,7 +39,9 @@ read_loop:
     movw $loaded_msg, %si
     call print
     sti
-    jmp $0x0000, $KERNEL_OFFSET
+    // Far jump to stage2
+    movb boot_drive, %dl
+    ljmp $0x0000, $STAGE_TWO_OFFSET
 
 print:
     pusha
