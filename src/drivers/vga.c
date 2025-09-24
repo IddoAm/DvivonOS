@@ -2,7 +2,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <kernel/os.h>
+#include <arch/i686/io.h>
+#include <arch/i686/ports.h>
+
 #include <lib/string.h>
 
 void vga_clear(void);
@@ -50,11 +52,11 @@ uint16_t* terminal_buffer = (uint16_t*)VGA_MEMORY;
 void terminal_move_cursor(size_t row, size_t col) {
     uint16_t pos = row * VGA_WIDTH + col;
 
-    outb(0x3D4, 14);              // Tell VGA we’re setting high byte of cursor
-    outb(0x3D5, (pos >> 8) & 0xFF);
+    outb(VGA_INDEX_PORT, 14);              // Tell VGA we’re setting high byte of cursor
+    outb(VGA_DATA_PORT, (pos >> 8) & 0xFF);
 
-    outb(0x3D4, 15);              // Low byte
-    outb(0x3D5, pos & 0xFF);
+    outb(VGA_INDEX_PORT, 15);              // Low byte
+    outb(VGA_DATA_PORT, pos & 0xFF);
 }
 
 void vga_initialize(void) 

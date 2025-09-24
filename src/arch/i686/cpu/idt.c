@@ -1,35 +1,38 @@
 
 #include <arch/i686/idt.h>
-#include <kernel/os.h>
+
+#include <arch/i686/ports.h>
+#include <arch/i686/io.h>
+
 #include <drivers/vga.h>
 
 void pic_remap(void) {
     unsigned char a1, a2;
 
     // Save masks
-    a1 = inb(0x21);
-    a2 = inb(0xA1);
+    a1 = inb(PIC_MASTER_DATA);
+    a2 = inb(PIC_SLAVE_DATA);
 
     // Start initialization
-    outb(0x20, 0x11);
-    outb(0xA0, 0x11);
+    outb(PIC_MASTER_CMD, 0x11);
+    outb(PIC_SLAVE_CMD, 0x11);
 
     // Set vector offsets
-    outb(0x21, 0x20); // Master PIC → 0x20–0x27
-    outb(0xA1, 0x28); // Slave PIC  → 0x28–0x2F
+    outb(PIC_MASTER_DATA, 0x20); // Master PIC → 0x20–0x27
+    outb(PIC_SLAVE_DATA, 0x28); // Slave PIC  → 0x28–0x2F
 
     // Tell Master about Slave at IRQ2 (0000 0100)
-    outb(0x21, 0x04);
+    outb(PIC_MASTER_DATA, 0x04);
     // Tell Slave its cascade identity (0000 0010)
-    outb(0xA1, 0x02);
+    outb(PIC_SLAVE_DATA, 0x02);
 
     // Set 8086/88 mode
-    outb(0x21, 0x01);
-    outb(0xA1, 0x01);
+    outb(PIC_MASTER_DATA, 0x01);
+    outb(PIC_SLAVE_DATA, 0x01);
 
     // Restore saved masks
-    outb(0x21, a1);
-    outb(0xA1, a2);
+    outb(PIC_MASTER_DATA, a1);
+    outb(PIC_SLAVE_DATA, a2);
 }
 
 typedef struct {
@@ -123,8 +126,8 @@ void irq_common_handler(struct regs* r) {
     }
 
     // Send EOI
-    if (irq >= 8) outb(0xA0, 0x20);
-    outb(0x20, 0x20);
+    if (irq >= 8) outb(PIC_SLAVE_CMD, 0x20);
+    outb(PIC_MASTER_CMD, 0x20);
 }
 
 void irq_register_handler(uint8_t irq, irq_handler_t handler) {

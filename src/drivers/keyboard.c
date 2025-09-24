@@ -4,7 +4,8 @@
 
 
 #include <drivers/keyboard.h>
-#include <kernel/os.h>
+#include <arch/i686/io.h>
+#include <arch/i686/ports.h>
 
 #define KEYBOARD_BUFFER_SIZE 256
 
@@ -30,7 +31,7 @@ volatile uint8_t buffer_head = 0;
 volatile uint8_t buffer_tail = 0;
 
 void keyboard_callback() {
-    uint8_t scancode = inb(0x60);
+    uint8_t scancode = inb(KEYBOARD_DATA_PORT);
     
     if(scancode < 128 && scancode >= 0){
         key_event event;
