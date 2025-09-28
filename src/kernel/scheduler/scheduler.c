@@ -1,55 +1,64 @@
 #include <kernel/scheduler/scheduler.h>
-#include <kernel/time/time.h>
 #include <lib/stdio.h>
+#include <lib/string.h> // for memset
 
-#define TASK_MAX_TICKS 5
+#define TASK_MAX_TICKS 100
 
 volatile task_t* task_list_head = 0;
 volatile task_t* current_task = 0;
 volatile uint32_t current_task_ticks = 0;
 
-// Preemptive scheduler called on each timer tick
-void schedule(uint64_t ticks) {
+void schedule(interrupt_frame_t* frame) {
     if (!current_task || !current_task->next) return;
-    printf("%d\n", current_task_ticks);
+
+    // save current task registers
+    memcpy(current_task->context, frame, sizeof(interrupt_frame_t));
+
     current_task_ticks++;
     if (current_task_ticks >= TASK_MAX_TICKS) {
         current_task_ticks = 0;
 
-        // Save current ESP into currecnt task
-        asm volatile("mov %%esp, %0" : "=r"(current_task->esp));
-
-        // Pick next task
+        // pick next task
         current_task = current_task->next;
 
-        // Load ESP from next task
-        asm volatile("mov %0, %%esp" : : "r"(current_task->esp));
+        // overwrite IRQ frame with next task's context
+        memcpy(frame, current_task->context, sizeof(interrupt_frame_t));
     }
 }
 
+
 // Initialize scheduler
 void scheduler_init() {
-    register_timer_callback(schedule);
+    // register timer IRQ0 handler
+    printf("reg\n");
+    isr_register_handler(irq_to_vector(0), (interrupt_handler_t)schedule);
+    printf("reg done\n");
 }
 
 // Initialize a single task
 void task_init(task_t* task, void (*entry)(void), uint32_t* stack_top) {
+    interrupt_frame_t* frame = (interrupt_frame_t*)(stack_top - sizeof(interrupt_frame_t)/sizeof(uint32_t));
+    memset(frame, 0, sizeof(*frame));
+
+    // Set CPU context
+    frame->eip = (uint32_t)entry;
+    frame->cs = 0x08;
+    frame->eflags = 0x202;
+    frame->ds = frame->es = frame->fs = frame->gs = 0x10;
+
+    // push dummy general purpose registers (popa order)
+    frame->eax = frame->ecx = frame->edx = frame->ebx = 0;
+    frame->esp = (uint32_t)stack_top;   // original stack pointer
+    frame->ebp = frame->esi = frame->edi = 0;
+
+    frame->int_no = 0;
+    frame->err_code = 0;
+
+    task->context = frame;
     task->entry = entry;
-    task->esp = stack_top;
-
-    // Prepare stack as if it was interrupted
-    // Stack layout: [pusha regs][EIP][CS][EFLAGS]
-    *(--task->esp) = 0x202;           // EFLAGS (IF=1)
-    *(--task->esp) = 0x08;            // CS (kernel code segment)
-    *(--task->esp) = (uint32_t)entry; // EIP
-
-    // Push dummy general-purpose registers for pusha
-    for (int i = 0; i < 8; i++)
-        *(--task->esp) = 0;
-
     task->state = 0; // READY
 
-    // Add to circular task list
+    // add to circular list
     if (!task_list_head) {
         task_list_head = task;
         task->next = task;
@@ -60,15 +69,15 @@ void task_init(task_t* task, void (*entry)(void), uint32_t* stack_top) {
     }
 }
 
-// Do an initial context switch to the first task
+
+// Start the first task
 void start_first_task() {
     if (!current_task) return;
 
     asm volatile(
-        "mov %0, %%esp\n"  // Load ESP
-        "popa\n"           // Pop registers
-        "iret\n"           // Return to task
+        "movl %0, %%esp\n"
+        "iret\n"
         :
-        : "r"(current_task->esp)
+        : "r"(current_task->context)
     );
 }

@@ -5,6 +5,8 @@
 #include <arch/i686/io.h>
 
 #include <drivers/vga.h>
+#include <lib/stdio.h>
+#include <lib/string.h>
 
 void pic_remap(void) {
     unsigned char a1, a2;
@@ -90,6 +92,8 @@ static isr_t* const irqs[16] = {
 
 
 void idt_init(void) {
+    memset(isr_table_start, 0, INTURRUPT_COUNT * MAX_HANDELERS_PER_INTURRUPT * sizeof(uint32_t));
+
     _idtr.limit = sizeof(idt) - 1;
     _idtr.base  = (uint32_t)&idt;
 
@@ -107,109 +111,34 @@ void idt_init(void) {
     __asm__ volatile ("sti");
 }
 
-struct regs {
-    uint32_t gs, fs, es, ds;
-    uint32_t edi, esi, ebp, esp, ebx, edx, ecx, eax;
-    uint32_t int_no, err_code;  
-    uint32_t eip, cs, eflags, useresp, ss;
-};
+void isr_common_handler(interrupt_frame_t* frame) {
+    // Check if there are handlers registered for this interrupt
 
-static irq_handler_t irq_handlers[IRQ_COUNT] = { 0 };
-
-void irq_common_handler(struct regs* r) {
-    uint8_t irq = r->int_no - 0x20;   
-
-    if (irq >= 0 && irq < IRQ_COUNT) {
-        if (irq_handlers[irq]) {
-            irq_handlers[irq]();
+    for(int i=0;i<MAX_HANDELERS_PER_INTURRUPT;i++){
+        if((interrupt_handler_t)isr_table_start[frame->int_no * MAX_HANDELERS_PER_INTURRUPT + i]){
+            uintptr_t ptr = (uintptr_t)isr_table_start[frame->int_no * MAX_HANDELERS_PER_INTURRUPT + i];
+            ((interrupt_handler_t)isr_table_start[frame->int_no * MAX_HANDELERS_PER_INTURRUPT + i])(frame);
         }
     }
 
-    // Send EOI
-    if (irq >= 8) outb(PIC_SLAVE_CMD, 0x20);
-    outb(PIC_MASTER_CMD, 0x20);
-}
-
-void irq_register_handler(uint8_t irq, irq_handler_t handler) {
-    if (irq >= 0 && irq < IRQ_COUNT) {
-        irq_handlers[irq] = handler;
+    // If the interrupt was from IRQ8 or higher, we need to send an EOI to the slave PIC
+    if (frame->int_no >= 40) {
+        outb(PIC_SLAVE_CMD, 0x20); // Send EOI to slave PIC
     }
+    // Always send an EOI to the master PIC
+    outb(PIC_MASTER_CMD, 0x20); // Send EOI to master PIC
 }
 
-void irq_unregister_handler(uint8_t irq) {
-    if (irq >= 0 && irq < IRQ_COUNT) {
-        irq_handlers[irq] = 0;
-    }
+
+void isr_register_handler(uint8_t num, interrupt_handler_t handler){
+    printf("int %d\n", num);
+    isr_table_start[num * MAX_HANDELERS_PER_INTURRUPT] = (uint32_t)handler;
 }
-
-static const char* exception_messages[32] = {
-    "Division By Zero",
-    "Debug",
-    "Non Maskable Interrupt",
-    "Breakpoint",
-    "Into Detected Overflow",
-    "Out of Bounds",
-    "Invalid Opcode",
-    "No Coprocessor",
-
-    "Double Fault",
-    "Coprocessor Segment Overrun",
-    "Bad TSS",
-    "Segment Not Present",
-    "Stack Fault",
-    "General Protection Fault",
-    "Page Fault",
-    "Unknown Interrupt",
-
-    "Coprocessor Fault",
-    "Alignment Check",
-    "Machine Check",
-    "Reserved",
-    "Reserved",
-    "Reserved",
-    "Reserved",
-    "Reserved",
-
-    "Reserved",
-    "Reserved",
-    "Reserved",
-    "Reserved",
-    "Reserved",
-    "Reserved",
-    "Reserved",
-    "Reserved"
-};
-
-static excption_handler_t excption_handlers[EXCEPTION_COUNT] = { 0 };
-
-void isr_common_handler(struct regs* r) {
-    uint8_t code = r->int_no;
-
-    if(code >= 0 && code <= 31){
-        // CPU exception
-        if(excption_handlers[code]){
-            excption_handlers[code](code);
-        }else{
-            vga_writestring("UNHANDLED EXCEPTION: ");
-            vga_writestring(exception_messages[code]);
-            vga_writestring("\nSystem Halted.\n");
-
-            __asm__ volatile ("cli; hlt");
+void isr_unregister_handler(uint8_t num, interrupt_handler_t handler){
+    for(int i=0;i<MAX_HANDELERS_PER_INTURRUPT;i++){
+        if((interrupt_handler_t)isr_table_start[num * MAX_HANDELERS_PER_INTURRUPT + i] == handler){
+            isr_table_start[num * MAX_HANDELERS_PER_INTURRUPT + i] = 0;
+            return;
         }
-    }else{
-        vga_writestring("UNHANDLED INTURRPT\n");
-        // TODO: add printing of numbers
-    }
-}
-
-void exception_register_handler(uint8_t exception, excption_handler_t handler) {
-    if (exception >= 0 && exception < EXCEPTION_COUNT) {
-        excption_handlers[exception] = handler;
-    }
-}
-
-void exception_unregister_handler(uint8_t exception) {
-    if (exception >= 0 && exception < EXCEPTION_COUNT) {
-        excption_handlers[exception] = 0;
     }
 }

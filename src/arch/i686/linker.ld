@@ -32,6 +32,13 @@ SECTIONS
         *(.bss)
     }
 
+    .isr_table (NOLOAD) : ALIGN(4K)
+    {
+        isr_table_start = .;
+        . += 4k; /* 1 page for isr table: 256 ints, 4 max handlers per int */
+        isr_table_end = .;
+    }
+
     .pmm_bitmap (NOLOAD) : ALIGN(4K)
     {
         _pmm_bitmap_start = .;

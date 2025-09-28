@@ -30,7 +30,7 @@ key_event keyboard_buffer[KEYBOARD_BUFFER_SIZE] = {0};
 volatile uint8_t buffer_head = 0;
 volatile uint8_t buffer_tail = 0;
 
-void keyboard_callback() {
+void keyboard_callback(interrupt_frame_t* frame) {
     uint8_t scancode = inb(KEYBOARD_DATA_PORT);
     
     if(scancode < 128 && scancode >= 0){

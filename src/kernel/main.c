@@ -36,15 +36,6 @@ void shell_loop1(){
 
 void kernel_main(uint32_t magic, uint32_t addr) 
 {
-	loader_init(magic, addr);
-
-	gdt_init();
-	idt_init();
-	
-	irq_register_handler(1, keyboard_callback);
-
-	clock_init(100); // 100 Hz
-
 	// todo: move this to terminal file
     stdio_interface_t vga_interface = {
         .init = vga_initialize,
@@ -56,21 +47,41 @@ void kernel_main(uint32_t magic, uint32_t addr)
 	stdio_init();
 	printf("Welcome to Iddo and Hillel amazing os!!!!\n");
 
+	loader_init(magic, addr);
+
+	gdt_init();
+	idt_init();
+	
+	isr_register_handler(irq_to_vector(1), keyboard_callback);
+
+	clock_init(100); // 100 Hz
+
+	printf("la\n");
+
 	pmm_init(loader_get_memory_map(), loader_get_memory_map_length());
 	vmm_init();
 
+	printf("la\n");
+
+	
 	scheduler_init();
 	task_t shell_task1;
 	uint32_t* shell_stack1 = (uint32_t*)kmalloc(2*PAGE_SIZE);
-	task_init(&shell_task1, shell_loop2, shell_stack1 + (2*PAGE_SIZE)/sizeof(uint32_t));
+	task_init(&shell_task1, shell_loop1, shell_stack1 + (2*PAGE_SIZE)/sizeof(uint32_t));
+
+	printf("la\n");
 
 	task_t shell_task2;
 	uint32_t* shell_stack2 = (uint32_t*)kmalloc(2*PAGE_SIZE);
-	task_init(&shell_task2, shell_loop1, shell_stack2 + (2*PAGE_SIZE)/sizeof(uint32_t));
+	task_init(&shell_task2, shell_loop2, shell_stack2 + (2*PAGE_SIZE)/sizeof(uint32_t));
 
 	start_first_task();
-	
-	printf("test");
+
+	printf("la\n");
+	printf("bambam");
+	while(true) {
+		printf("e");
+	}
 }
 
 

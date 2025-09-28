@@ -4,6 +4,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <arch/i686/idt.h>
 
 typedef enum {
     KEY_CHAR,
@@ -23,6 +24,6 @@ typedef struct {
 
 // Return false is buffer is empty
 bool keyboard_read(key_event* event);
-void keyboard_callback();
+void keyboard_callback(interrupt_frame_t* frame);
 
 #endif

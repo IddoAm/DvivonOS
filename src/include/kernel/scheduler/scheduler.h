@@ -2,9 +2,10 @@
 #define SCHEDULER_H
 
 #include <stdint.h>
+#include <arch/i686/idt.h>
 
 typedef struct task {
-    uint32_t* esp;
+    interrupt_frame_t* context;
     void (*entry)(void);
     struct task* next; 
     uint8_t state;

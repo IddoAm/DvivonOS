@@ -2,6 +2,7 @@
 #include <arch/i686/idt.h>
 #include <arch/i686/ports.h>
 #include <arch/i686/io.h>
+#include <lib/stdio.h>
 
 #define PIT_FREQUENCY 1193180
 
@@ -11,7 +12,7 @@ volatile uint64_t system_ticks = 0;
 static timer_callback_t callbacks[MAX_TIMER_CALLBACKS];
 static int callback_count = 0;
 
-void timer_interrupt_handler() {
+void timer_interrupt_handler(interrupt_frame_t* frame) {
     system_ticks++;
 
     // Call registered callbacks
@@ -34,7 +35,9 @@ void clock_init(uint32_t frequency) {
     outb(PIT_CHANNEL0, (uint8_t)((divisor >> 8) & 0xFF)); // Send high byte
 
     // Register the IRQ handler for the timer (IRQ0)
-    irq_register_handler(0, timer_interrupt_handler);
+    printf("reg timer\n");
+    isr_register_handler(irq_to_vector(0), timer_interrupt_handler);
+    printf("reg timer done\n");
 }
 
 int register_timer_callback(timer_callback_t callback) {
