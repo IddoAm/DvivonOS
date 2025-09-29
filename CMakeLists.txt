@@ -129,13 +129,14 @@ add_custom_command(
 
 add_custom_target(bootloader ALL DEPENDS ${BOOT_IMG})
 
-# Create a complete bootable image with kernel
+# Create a complete bootable image with kernel and padd the kernel if needed to be 64 sectors (32768 bytes)
 set(COMPLETE_IMG ${CMAKE_BINARY_DIR}/bootloader/complete.img)
 add_custom_command(
     OUTPUT ${COMPLETE_IMG}
     COMMAND ${CMAKE_COMMAND} -E copy ${BOOT_IMG} ${COMPLETE_IMG}
-    # Add kernel to sectors 3+ (after stage1 and stage2)
+    # Add kernel to sectors 3+ (after stage1 and stage2) and pad the kernel if needed to be 64 sectors (32768 bytes)
     COMMAND dd if=${CMAKE_BINARY_DIR}/kernel.elf of=${COMPLETE_IMG} bs=512 seek=3 conv=notrunc || true
+    COMMAND dd if=/dev/zero of=${COMPLETE_IMG} bs=512 count=64 seek=32768 conv=notrunc || true
     DEPENDS ${BOOT_IMG} kernel.elf
     VERBATIM
 )

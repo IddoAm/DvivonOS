@@ -5,5 +5,9 @@ set architecture i386
 # Set breakpoints
 break *0x7c00
 break *0x7e00
+#break *0x7f71
 
-
+# debug data
+# ret of print of stage 1  *0x7c53
+# ret of print of stage 2 *0x7f71
+# jamp to stage tow 0x7c4c

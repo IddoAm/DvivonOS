@@ -1,9 +1,9 @@
 .code16
 
 _start_label:
-.equ SECTOR_AMOUNT, 1
+.equ SECTOR_AMOUNT, 2
 .equ SECTOR_START, 2
-.equ STAGE_TWO_OFFSET, 0x7E00
+.equ STAGE_TWO_OFFSET, 0x7E00 
 
 _start:
     cli
@@ -19,27 +19,21 @@ _start:
     movw $0x0000, %ax
     movw %ax, %es
     movw $STAGE_TWO_OFFSET, %bx
-    movb $SECTOR_AMOUNT, %bl
     movb $SECTOR_START, %cl
     movb $0x00, %ch
     movb $0x00, %dh
     movb boot_drive, %dl
 
-read_loop:
     pusha
     movb $0x02, %ah
-    movb $0x01, %al
+    movb $SECTOR_AMOUNT, %al
     int $0x13
     popa
     jc disk_read_error
-    addw $0x0200, %bx
-    incb %cl
-    decb %bl
-    jnz read_loop
     movw $loaded_msg, %si
     call print
     sti
-    // Far jump to stage2
+    # Far jump to stage2
     movb boot_drive, %dl
     ljmp $0x0000, $STAGE_TWO_OFFSET
 

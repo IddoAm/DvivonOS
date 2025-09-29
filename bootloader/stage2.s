@@ -12,11 +12,10 @@
 .equ MULTIBOOT_CHECKSUM, -(MULTIBOOT_MAGIC + MULTIBOOT_FLAGS)
 
 # Memory layout
-.equ STAGE2_LOAD_ADDR, 0x7E00      # Stage 2 load address (16-bit accessible)
+.equ STAGE2_LOAD_ADDR, 0x7E0       # Stage 2 load address (16-bit accessible)
 .equ KERNEL_LOAD_ADDR, 0x100000    # 1MB - where kernel will be loaded (32-bit address)
-.equ KERNEL_TEMP_ADDR, 0x8000      # Temporary load address (16-bit accessible)
 .equ KERNEL_START_SECTOR, 3        # Kernel starts at sector 3 (after stage1 and stage2)
-.equ KERNEL_SECTORS, 64            # Maximum sectors to read for kernel
+.equ KERNEL_SECTORS, 2            # Maximum sectors to read for kernel
 
 # GDT constants
 .equ GDT_NULL, 0x00
@@ -28,7 +27,7 @@ _start2:
     movb %dl, boot_drive
     
     # Initialize segments
-    movw $0, %ax
+    movw $STAGE2_LOAD_ADDR, %ax
     movw %ax, %ds
     movw %ax, %es
 
@@ -42,14 +41,14 @@ _start2:
     movw $a20_msg, %si
     call print_string
     
-    # Step 2: Load kernel to 0x00100000
+    # Step 2: Load kernel directly to 0x00100000
     call load_kernel
     movw $kernel_loaded_msg, %si
     call print_string
     
     # Step 3: Search for multiboot header and verify
     call find_multiboot_header
-    testl %eax, %eax
+    test %ax, %ax
     jz multiboot_error
     movw $multiboot_found_msg, %si
     call print_string
@@ -143,13 +142,18 @@ wait_8042_output:
     popa
     ret
 
-# Load kernel from disk to memory
+# Load kernel from disk directly to 0x100000
 load_kernel:
     pusha
     
-    # Load kernel to temporary location first (below 1MB)
-    # We'll move it to 0x100000 after enabling A20
-    movw $KERNEL_TEMP_ADDR, %bx     # Load to 0x8000 (32KB mark)
+    # Set up segment for 32-bit addressing
+    # We need to set ES to access memory above 1MB
+    # ES:0x100000 = 0x1000:0x0000 (segment 0x1000, offset 0x0000)
+    movw $0x1000, %ax
+    movw %ax, %es
+    
+    # Load kernel directly to 0x100000
+    movw $0x0000, %bx     # Offset 0 in segment 0x1000 = 0x100000
     movb $KERNEL_START_SECTOR, %cl
     movb $KERNEL_SECTORS, %al
     
@@ -157,32 +161,14 @@ load_kernel:
     movb boot_drive, %dl
     call read_sectors
     
-    # Now move kernel from 0x8000 to 0x100000
-    call move_kernel_to_high_memory
+    # Restore ES segment
+    movw $STAGE2_LOAD_ADDR, %ax
+    movw %ax, %es
     
     popa
     ret
 
-# Move kernel from 0x8000 to 0x100000
-move_kernel_to_high_memory:
-    pusha
-    
-    # Set up source and destination
-    movl $KERNEL_TEMP_ADDR, %esi    # Source: 0x8000
-    movl $KERNEL_LOAD_ADDR, %edi    # Destination: 0x100000
-    movl $0x8000, %ecx             # Move 32KB (0x8000 bytes)
-    
-    # Copy 4 bytes at a time
-.move_loop:
-    movl (%esi), %eax
-    movl %eax, (%edi)
-    addl $4, %esi
-    addl $4, %edi
-    subl $4, %ecx
-    jnz .move_loop
-    
-    popa
-    ret
+# This function is no longer needed - we load directly to 0x100000
 
 # Read sectors from disk
 # AL = number of sectors, CL = starting sector, BX = buffer address, DL = drive
@@ -219,41 +205,64 @@ find_multiboot_header:
     pusha
     
     # Start searching from kernel load address
-    movl $KERNEL_LOAD_ADDR, %edi
-    movl $0x2000, %ecx       # Search first 8KB (multiboot requirement)
+    mov $KERNEL_LOAD_ADDR, %di
+    mov $0x4, %cx       # Search first 8KB (multiboot requirement)
     
 .search_loop:
-    # Check if we have a valid multiboot header
-    cmpl $MULTIBOOT_MAGIC, (%edi)
+    # Check if we have a valid multiboot header (32-bit comparison in 16-bit mode)
+    # Compare lower 16 bits first
+    cmp $0xB002, (%di)        # Lower 16 bits of 0x1BADB002
+    jne .next_dword
+    
+    # Compare upper 16 bits
+    cmp $0x1BAD, 2(%di)       # Upper 16 bits of 0x1BADB002
     jne .next_dword
     
     # Found magic number, check flags and checksum
-    movl 4(%edi), %eax       # Get flags
-    movl 8(%edi), %ebx       # Get checksum
+    # Save loop counter first
+    push %cx
+    
+    mov 4(%di), %ax       # Get flags (lower 16 bits)
+    mov 6(%di), %dx       # Get flags (upper 16 bits)
+    mov 8(%di), %bx       # Get checksum (lower 16 bits)
+    mov 10(%di), %cx      # Get checksum (upper 16 bits)
     
     # Verify checksum: magic + flags + checksum should equal 0
-    addl $MULTIBOOT_MAGIC, %eax
-    addl %ebx, %eax
-    testl %eax, %eax
+    # Add magic number (0x1BADB002) to flags
+    add $0xB002, %ax      # Add lower 16 bits of magic to flags
+    adc $0x1BAD, %dx      # Add upper 16 bits of magic to flags with carry
+    
+    # Add checksum
+    add %bx, %ax          # Add lower 16 bits of checksum
+    adc %cx, %dx          # Add upper 16 bits of checksum with carry
+    
+    # Check if result is zero
+    or %dx, %ax           # Combine upper and lower parts
+    test %ax, %ax
+    
+    # Restore loop counter
+    
     jz .found_header
+    pop %cx
     
 .next_dword:
-    addl $4, %edi
-    subl $4, %ecx
+    add $4, %di
+    sub $4, %cx
     jnz .search_loop
     
     # Header not found
-    xorl %eax, %eax
+    xor %ax, %ax
     jmp .done
     
 .found_header:
-    movl %edi, multiboot_header_addr
-    movl $1, %eax
+    mov %di, multiboot_header_addr
+    mov $1, %ax
     
 .done:
-    movl %eax, %esp          # Store result in stack for return
+    # Store result in a variable for return
+    mov %ax, result
     popa
-    movl %esp, %eax          # Get result
+    mov result, %ax      # Get result
     ret
 
 # Build minimal multiboot info structure
@@ -261,17 +270,17 @@ build_multiboot_info:
     pusha
     
     # Get memory size using BIOS int 0x15, function 0xE820
-    movl $multiboot_info, %edi
-    movl $0x00000001, (%edi)  # flags = 1 (memory info available)
-    addl $4, %edi
+    mov $multiboot_info, %di
+    mov $0x00000001, (%di)  # flags = 1 (memory info available)
+    add $4, %di
     
     # Get lower memory (below 1MB)
     int $0x12                 # Get memory size in KB
-    movl %eax, (%edi)         # mem_lower
-    addl $4, %edi
+    mov %ax, (%di)         # mem_lower
+    add $4, %di
     
     # Get upper memory (above 1MB) - simplified
-    movl $0x100000, (%edi)    # mem_upper (1MB, simplified)
+    mov $0x100000, (%di)    # mem_upper (1MB, simplified)
     
     popa
     ret
@@ -291,9 +300,9 @@ enter_protected_mode:
     pusha
     
     # Enable protected mode
-    movl %cr0, %eax
-    orl $0x01, %eax
-    movl %eax, %cr0
+    mov %cr0, %eax
+    or $0x01, %eax
+    mov %eax, %cr0
     
     # Far jump to 32-bit code
     ljmp $GDT_CODE, $protected_mode_start
@@ -363,6 +372,7 @@ boot_drive: .byte 0
 sectors_to_read: .byte 0
 current_sector: .byte 0
 multiboot_header_addr: .long 0
+result: .word 0
 
 # Messages
 stage2_msg: .asciz "Stage 2: Starting bootloader...\r\n"

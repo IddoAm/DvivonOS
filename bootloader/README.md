@@ -81,8 +81,26 @@ The multiboot_info structure provided includes:
 
 To debug the boot loader run those commends in diffent terminals:
 
-* qemu-system-i386 -drive file=build/bootloader/boot.img,format=raw,if=floppy -S -s
-* gdb -x scripts/debug_memory.gdb
+```bash
+qemu-system-i386 -drive file=build/bootloader/boot.img,format=raw,if=floppy -S -s
+OR (for complete use)
+qemu-system-i386 -drive file=build/bootloader/complete.img,format=raw,if=floppy -S -s
+
+```
+```bash
+gdb -x scripts/debug_memory.gdb
+```
+
+Common GDB commands for debugging:
+
+- `si` or `stepi` — Step one instruction
+- `ni` or `nexti` — Step to next instruction (skipping calls)
+- `x/10i $eip` — Display the next 10 instructions at the current instruction pointer
+- `info registers` — Show CPU register values
+- `x/16xb 0x7c00` — Examine 16 bytes at bootloader start (hex+ASCII)
+- `b *0x7c00` — Set a breakpoint at bootloader entry
+- `c` — Continue execution
+- `bt` — Show backtrace (if available)
 
 ### note that the boot image need to be there
 
