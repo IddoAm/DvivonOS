@@ -5,6 +5,7 @@ project(OS C ASM)
 set(CMAKE_SYSTEM_NAME Generic)
 set(CMAKE_C_COMPILER i686-elf-gcc)
 set(CMAKE_ASM_COMPILER i686-elf-as)
+set(CMAKE_LINKER i686-elf-ld)
 
 # compiler flags
 set(CMAKE_C_FLAGS "-ffreestanding -fno-stack-protector -fno-pic -Wall -Wextra -O2")
@@ -54,7 +55,7 @@ add_custom_command(
 
 add_custom_command(
     OUTPUT ${BOOT_ELF}
-    COMMAND i686-elf-ld -m elf_i386 -T ${BOOT_LD} -nostdlib -n -o ${BOOT_ELF} ${BOOT_O}
+    COMMAND ${CMAKE_LINKER} -m elf_i386 -T ${BOOT_LD} -nostdlib -n -o ${BOOT_ELF} ${BOOT_O}
     DEPENDS ${BOOT_O} ${BOOT_LD}
     VERBATIM
 )
@@ -129,15 +130,46 @@ add_custom_command(
 
 add_custom_target(bootloader ALL DEPENDS ${BOOT_IMG})
 
-# Create a complete bootable image with kernel and padd the kernel if needed to be 64 sectors (32768 bytes)
+# Kernel size configuration (must match KERNEL_SECTORS in stage2.s)
+set(KERNEL_MAX_SECTORS 32 CACHE STRING "Maximum number of sectors for kernel")
+set(KERNEL_MAX_SIZE ${KERNEL_MAX_SECTORS} CACHE STRING "Maximum kernel size in bytes")
+math(EXPR KERNEL_MAX_SIZE "${KERNEL_MAX_SECTORS} * 512")
+
+# Create flat binary kernel from ELF
+set(KERNEL_BIN ${CMAKE_BINARY_DIR}/kernel.bin)
+add_custom_command(
+    OUTPUT ${KERNEL_BIN}
+    COMMAND i686-elf-objcopy -O binary ${CMAKE_BINARY_DIR}/kernel.elf ${KERNEL_BIN}
+    DEPENDS kernel.elf
+    VERBATIM
+)
+
+# Check kernel size and pad if necessary
+set(KERNEL_PADDED_BIN ${CMAKE_BINARY_DIR}/kernel_padded.bin)
+add_custom_command(
+    OUTPUT ${KERNEL_PADDED_BIN}
+    COMMAND ${CMAKE_COMMAND} -E echo "Checking kernel size..."
+    COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --cyan "Kernel size check:"
+    COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --cyan "  Max sectors: ${KERNEL_MAX_SECTORS}"
+    COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --cyan "  Max size: ${KERNEL_MAX_SIZE} bytes"
+    COMMAND ${CMAKE_SOURCE_DIR}/scripts/check_kernel_size.sh ${KERNEL_BIN} ${KERNEL_MAX_SIZE}
+    COMMAND ${CMAKE_COMMAND} -E copy ${KERNEL_BIN} ${KERNEL_PADDED_BIN}
+    COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --yellow "Padding kernel to ${KERNEL_MAX_SIZE} bytes..."
+    COMMAND dd if=/dev/zero of=${KERNEL_PADDED_BIN} bs=1 count=${KERNEL_MAX_SIZE} seek=0 conv=notrunc 2>/dev/null || true
+    COMMAND dd if=${KERNEL_BIN} of=${KERNEL_PADDED_BIN} bs=1 conv=notrunc 2>/dev/null || true
+    COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --green "Kernel padded successfully."
+    DEPENDS ${KERNEL_BIN}
+    VERBATIM
+)
+
+# Create a complete bootable image with padded kernel
 set(COMPLETE_IMG ${CMAKE_BINARY_DIR}/bootloader/complete.img)
 add_custom_command(
     OUTPUT ${COMPLETE_IMG}
     COMMAND ${CMAKE_COMMAND} -E copy ${BOOT_IMG} ${COMPLETE_IMG}
-    # Add kernel to sectors 3+ (after stage1 and stage2) and pad the kernel if needed to be 64 sectors (32768 bytes)
-    COMMAND dd if=${CMAKE_BINARY_DIR}/kernel.elf of=${COMPLETE_IMG} bs=512 seek=3 conv=notrunc || true
-    COMMAND dd if=/dev/zero of=${COMPLETE_IMG} bs=512 count=64 seek=32768 conv=notrunc || true
-    DEPENDS ${BOOT_IMG} kernel.elf
+    # Add padded kernel to sectors 3+ (after stage1 and stage2)
+    COMMAND dd if=${KERNEL_PADDED_BIN} of=${COMPLETE_IMG} bs=512 seek=3 conv=notrunc || true
+    DEPENDS ${BOOT_IMG} ${KERNEL_PADDED_BIN}
     VERBATIM
 )
 
