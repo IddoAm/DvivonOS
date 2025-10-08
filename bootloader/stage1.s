@@ -7,17 +7,19 @@ _start_label:
 
 _start:
     cli
-    movb %dl, boot_drive
+    # Set up segments (to 0x0000) and stack
     xorw %ax, %ax
     movw %ax, %ss
-    movw $0x7c00, %sp
-    movw $0x07c0, %ax
     movw %ax, %ds
     movw %ax, %es
+    # Set up stack
+    movw $0x7c00, %sp
+    # Save boot drive
+    movb %dl, boot_drive
+    # Print message
     movw $msg, %si
     call print
-    movw $0x0000, %ax
-    movw %ax, %es
+    # Read stage 2
     movw $STAGE_TWO_OFFSET, %bx
     movb $SECTOR_START, %cl
     movb $0x00, %ch

@@ -12,7 +12,6 @@
 .equ MULTIBOOT_CHECKSUM, -(MULTIBOOT_MAGIC + MULTIBOOT_FLAGS)
 
 # Memory layout
-.equ STAGE2_LOAD_ADDR, 0x7E0       # Stage 2 load address (16-bit accessible)
 .equ KERNEL_LOAD_ADDR, 0x10000     # 64KB - where kernel will be loaded (16-bit accessible)
 .equ KERNEL_START_SECTOR, 4        # Kernel starts at sector 4 (after stage1 and stage2)
 .equ KERNEL_SECTORS, 32           # Maximum sectors to read for kernel
@@ -26,12 +25,6 @@
 _start2:
     cli
     movb %dl, boot_drive
-    
-    # Initialize segments
-    movw $STAGE2_LOAD_ADDR, %ax
-    movw %ax, %ds
-    movw %ax, %es
-
     
     # Print stage 2 message
     movw $stage2_msg, %si
@@ -163,7 +156,7 @@ load_kernel:
     call read_sectors
     
     # Restore ES segment
-    movw $STAGE2_LOAD_ADDR, %ax
+    xor %ax, %ax
     movw %ax, %es
     
     popa
@@ -240,7 +233,7 @@ find_multiboot_header:
     # Store result in a variable for return
     mov %ax, result
     # Restore ES segment
-    movw $STAGE2_LOAD_ADDR, %ax
+    xor %ax, %ax
     movw %ax, %es
     
     popa
@@ -312,8 +305,6 @@ protected_mode_start:
     # Set up registers for kernel
     movl $MULTIBOOT_MAGIC, %eax    # Magic number
     movl $multiboot_info, %ebx     # Multiboot info structure
-    movw $jmp_kernel_msg, %si
-    call print_string
     # Jump to kernel at 0x10000 (where we loaded it)
     mov $0x10000, %edx
     jmp *%edx

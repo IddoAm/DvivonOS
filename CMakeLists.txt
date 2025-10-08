@@ -6,6 +6,7 @@ set(CMAKE_SYSTEM_NAME Generic)
 set(CMAKE_C_COMPILER i686-elf-gcc)
 set(CMAKE_ASM_COMPILER i686-elf-as)
 set(CMAKE_LINKER i686-elf-ld)
+set(CMAKE_OBJCOPY i686-elf-objcopy)
 
 # compiler flags
 set(CMAKE_C_FLAGS "-ffreestanding -fno-stack-protector -fno-pic -Wall -Wextra -O2")
@@ -38,84 +39,38 @@ add_custom_target(iso
     DEPENDS kernel.elf
 )
 
-# bootloader flat binary (boot.bin)
-set(BOOT_ASM ${CMAKE_SOURCE_DIR}/bootloader/boot.s)
+# Bootloader commands ___________________________________________________________________________________________________
+# General bootloader commands
 set(BOOT_LD  ${CMAKE_SOURCE_DIR}/bootloader/bootloader.ld)
-set(BOOT_O   ${CMAKE_BINARY_DIR}/bootloader/boot.o)
-set(BOOT_ELF ${CMAKE_BINARY_DIR}/bootloader/boot.elf)
-set(BOOT_BIN ${CMAKE_BINARY_DIR}/bootloader/boot.bin)
-
-add_custom_command(
-    OUTPUT ${BOOT_O}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/bootloader
-    COMMAND ${CMAKE_ASM_COMPILER} -o ${BOOT_O} ${BOOT_ASM}
-    DEPENDS ${BOOT_ASM}
-    VERBATIM
-)
-
-add_custom_command(
-    OUTPUT ${BOOT_ELF}
-    COMMAND ${CMAKE_LINKER} -m elf_i386 -T ${BOOT_LD} -nostdlib -n -o ${BOOT_ELF} ${BOOT_O}
-    DEPENDS ${BOOT_O} ${BOOT_LD}
-    VERBATIM
-)
-
-add_custom_command(
-    OUTPUT ${BOOT_BIN}
-    COMMAND i686-elf-objcopy -O binary ${BOOT_ELF} ${BOOT_BIN}
-    DEPENDS ${BOOT_ELF}
-    VERBATIM
-)
+set(STAGE1_LINKER_FLAGS "-n -nostdlib -Ttext 0x7C00 --oformat binary")
+set(STAGE2_LINKER_FLAGS "-n -nostdlib -Ttext 0x7E00 --oformat binary")
 
 # Stage 1 - Boot sector (512 bytes, loaded at 0x7C00)
 set(STAGE1_ASM ${CMAKE_SOURCE_DIR}/bootloader/stage1.s)
 set(STAGE1_O   ${CMAKE_BINARY_DIR}/bootloader/stage1.o)
-set(STAGE1_ELF ${CMAKE_BINARY_DIR}/bootloader/stage1.elf)
 set(STAGE1_BIN ${CMAKE_BINARY_DIR}/bootloader/stage1.bin)
 
-add_custom_command(
-    OUTPUT ${STAGE1_O}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/bootloader
-    COMMAND ${CMAKE_ASM_COMPILER} -o ${STAGE1_O} ${STAGE1_ASM}
-    DEPENDS ${STAGE1_ASM}
-    VERBATIM
-)
-add_custom_command(
-    OUTPUT ${STAGE1_ELF}
-    COMMAND i686-elf-ld -m elf_i386 -T ${BOOT_LD} -nostdlib -n -o ${STAGE1_ELF} ${STAGE1_O}
-    DEPENDS ${STAGE1_O} ${BOOT_LD}
-    VERBATIM
-)
+
 add_custom_command(
     OUTPUT ${STAGE1_BIN}
-    COMMAND i686-elf-objcopy -O binary ${STAGE1_ELF} ${STAGE1_BIN}
-    DEPENDS ${STAGE1_ELF}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/bootloader
+    COMMAND ${CMAKE_ASM_COMPILER} -o ${STAGE1_O} ${STAGE1_ASM}
+    COMMAND ${CMAKE_LINKER} -m elf_i386 -n -nostdlib -Ttext 0x7C00 --oformat binary -o ${STAGE1_BIN} ${STAGE1_O}
+    DEPENDS ${STAGE1_ASM}
     VERBATIM
 )
 
 # Stage 2 - Second stage bootloader (loaded at 0x7E00)
 set(STAGE2_ASM ${CMAKE_SOURCE_DIR}/bootloader/stage2.s)
 set(STAGE2_O   ${CMAKE_BINARY_DIR}/bootloader/stage2.o)
-set(STAGE2_ELF ${CMAKE_BINARY_DIR}/bootloader/stage2.elf)
 set(STAGE2_BIN ${CMAKE_BINARY_DIR}/bootloader/stage2.bin)
 
 add_custom_command(
-    OUTPUT ${STAGE2_O}
+    OUTPUT ${STAGE2_BIN}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/bootloader
     COMMAND ${CMAKE_ASM_COMPILER} -o ${STAGE2_O} ${STAGE2_ASM}
+    COMMAND ${CMAKE_LINKER} -m elf_i386 -n -nostdlib -Ttext 0x7E00 --oformat binary -o ${STAGE2_BIN} ${STAGE2_O}
     DEPENDS ${STAGE2_ASM}
-    VERBATIM
-)
-add_custom_command(
-    OUTPUT ${STAGE2_ELF}
-    COMMAND i686-elf-ld -m elf_i386 -T ${BOOT_LD} -nostdlib -n -o ${STAGE2_ELF} ${STAGE2_O}
-    DEPENDS ${STAGE2_O} ${BOOT_LD}
-    VERBATIM
-)
-add_custom_command(
-    OUTPUT ${STAGE2_BIN}
-    COMMAND i686-elf-objcopy -O binary ${STAGE2_ELF} ${STAGE2_BIN}
-    DEPENDS ${STAGE2_ELF}
     VERBATIM
 )
 
@@ -139,7 +94,7 @@ math(EXPR KERNEL_MAX_SIZE "${KERNEL_MAX_SECTORS} * 512")
 set(KERNEL_BIN ${CMAKE_BINARY_DIR}/kernel.bin)
 add_custom_command(
     OUTPUT ${KERNEL_BIN}
-    COMMAND i686-elf-objcopy -O binary ${CMAKE_BINARY_DIR}/kernel.elf ${KERNEL_BIN}
+    COMMAND ${CMAKE_OBJCOPY} -O binary ${CMAKE_BINARY_DIR}/kernel.elf ${KERNEL_BIN}
     DEPENDS kernel.elf
     VERBATIM
 )
