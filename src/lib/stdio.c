@@ -30,7 +30,9 @@ void stdio_clear(void) {
 }
 
 void putc(char c) {
+    asm volatile("cli");
     if (active_interface && active_interface->putc) active_interface->putc(c);
+    asm volatile("sti");
 }
 
 void puts(const char *str) {

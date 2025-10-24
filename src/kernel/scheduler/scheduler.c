@@ -2,14 +2,23 @@
 #include <lib/stdio.h>
 #include <lib/string.h> // for memset
 
+
 #define TASK_MAX_TICKS 100
 
-volatile task_t* task_list_head = 0;
-volatile task_t* current_task = 0;
-volatile uint32_t current_task_ticks = 0;
+static volatile task_t* task_list_head = 0;
+static volatile task_t* current_task = 0;
+static volatile uint32_t current_task_ticks = 0;
+
+static scheduler_state_t state = SCHED_STATE_OFF;
 
 void schedule(interrupt_frame_t* frame) {
-    if (!current_task || !current_task->next) return;
+    if(state == SCHED_STATE_STARTING) {
+        state = SCHED_STATE_RUNNING;
+        memcpy(frame, current_task->context, sizeof(interrupt_frame_t));
+        return;
+    }
+
+    if (state != SCHED_STATE_RUNNING || !current_task || !current_task->next) return;
 
     // save current task registers
     memcpy(current_task->context, frame, sizeof(interrupt_frame_t));
@@ -27,12 +36,12 @@ void schedule(interrupt_frame_t* frame) {
 }
 
 
-// Initialize scheduler
 void scheduler_init() {
-    // register timer IRQ0 handler
-    printf("reg\n");
+    if(state != SCHED_STATE_READY) return;
+
     isr_register_handler(irq_to_vector(0), (interrupt_handler_t)schedule);
-    printf("reg done\n");
+    state = SCHED_STATE_STARTING;
+    for (;;) asm volatile("hlt"); 
 }
 
 // Initialize a single task
@@ -63,21 +72,13 @@ void task_init(task_t* task, void (*entry)(void), uint32_t* stack_top) {
         task_list_head = task;
         task->next = task;
         current_task = task;
+        state = SCHED_STATE_READY;
     } else {
-        task->next = task_list_head->next;
-        task_list_head->next = task;
+        task_t* tail = task_list_head;
+        while (tail->next != task_list_head)
+            tail = tail->next;
+        tail->next = task;
+        task->next = task_list_head;
     }
 }
 
-
-// Start the first task
-void start_first_task() {
-    if (!current_task) return;
-
-    asm volatile(
-        "movl %0, %%esp\n"
-        "iret\n"
-        :
-        : "r"(current_task->context)
-    );
-}

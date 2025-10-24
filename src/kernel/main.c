@@ -20,7 +20,7 @@ void shell_loop2(){
 	printf("tests");
 	while(true){
 
-		printf("a");
+		printf("#");
 		for(volatile int i=0;i<500000;i++);
 	}
 }
@@ -29,7 +29,16 @@ void shell_loop1(){
 	printf("tests");
 	while(true){
 
-		printf("b");
+		printf("-");
+		for(volatile int i=0;i<500000;i++);
+	}
+}
+
+void shell_loop3(){
+	printf("tests");
+	while(true){
+
+		printf("+");
 		for(volatile int i=0;i<500000;i++);
 	}
 }
@@ -63,19 +72,21 @@ void kernel_main(uint32_t magic, uint32_t addr)
 
 	printf("la\n");
 
-	
-	scheduler_init();
 	task_t shell_task1;
-	uint32_t* shell_stack1 = (uint32_t*)kmalloc(2*PAGE_SIZE);
-	task_init(&shell_task1, shell_loop1, shell_stack1 + (2*PAGE_SIZE)/sizeof(uint32_t));
+	uint32_t* shell_stack1 = (uint32_t*)kmalloc(4*PAGE_SIZE);
+	task_init(&shell_task1, shell_loop1, shell_stack1 + (4*PAGE_SIZE)/sizeof(uint32_t));
 
 	printf("la\n");
 
 	task_t shell_task2;
-	uint32_t* shell_stack2 = (uint32_t*)kmalloc(2*PAGE_SIZE);
-	task_init(&shell_task2, shell_loop2, shell_stack2 + (2*PAGE_SIZE)/sizeof(uint32_t));
+	uint32_t* shell_stack2 = (uint32_t*)kmalloc(4*PAGE_SIZE);
+	task_init(&shell_task2, shell_loop2, shell_stack2 + (4*PAGE_SIZE)/sizeof(uint32_t));
 
-	start_first_task();
+	task_t shell_task3;
+	uint32_t* shell_stack3 = (uint32_t*)kmalloc(4*PAGE_SIZE);
+	task_init(&shell_task3, shell_loop3, shell_stack3 + (4*PAGE_SIZE)/sizeof(uint32_t));
+	
+	scheduler_init();
 
 	printf("la\n");
 	printf("bambam");
