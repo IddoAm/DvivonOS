@@ -3,11 +3,12 @@
 
 #include <arch/i686/ports.h>
 #include <arch/i686/io.h>
+#include <arch/i686/pic.h>
 
 #include <drivers/vga.h>
 #include <lib/stdio.h>
 #include <lib/string.h>
-
+/*
 void pic_remap(void) {
     unsigned char a1, a2;
 
@@ -36,6 +37,7 @@ void pic_remap(void) {
     outb(PIC_MASTER_DATA, a1);
     outb(PIC_SLAVE_DATA, a2);
 }
+    */
 
 typedef struct {
 	uint16_t    isr_low;      // The lower 16 bits of the ISR's address
@@ -92,6 +94,9 @@ static isr_t* const irqs[16] = {
 
 
 void idt_init(void) {
+    pic_disable_all();
+    pic_remap(0x20, 0x28);
+
     memset(isr_table_start, 0, INTURRUPT_COUNT * MAX_HANDELERS_PER_INTURRUPT * sizeof(uint32_t));
 
     _idtr.limit = sizeof(idt) - 1;
@@ -100,8 +105,6 @@ void idt_init(void) {
     for (int i = 0; i < 32; i++) {
         idt_set_gate(i, (uint32_t)exceptions[i], 0x08, 0x8E);
     }
-
-    pic_remap();
 
     for (int i = 0; i < 16; i++) {
         idt_set_gate(32 + i, (uint32_t)irqs[i], 0x08, 0x8E);

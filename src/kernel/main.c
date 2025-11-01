@@ -21,7 +21,7 @@ void shell_loop2(){
 	while(true){
 
 		printf("#");
-		for(volatile int i=0;i<500000;i++);
+		for(volatile int i=0;i<1000000;i++);
 	}
 }
 
@@ -30,7 +30,7 @@ void shell_loop1(){
 	while(true){
 
 		printf("-");
-		for(volatile int i=0;i<500000;i++);
+		for(volatile int i=0;i<1000000;i++);
 	}
 }
 
@@ -39,7 +39,7 @@ void shell_loop3(){
 	while(true){
 
 		printf("+");
-		for(volatile int i=0;i<500000;i++);
+		for(volatile int i=0;i<1000000;i++);
 	}
 }
 

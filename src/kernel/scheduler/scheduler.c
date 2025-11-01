@@ -3,7 +3,7 @@
 #include <lib/string.h> // for memset
 
 
-#define TASK_MAX_TICKS 100
+#define TASK_MAX_TICKS 10
 
 static volatile task_t* task_list_head = 0;
 static volatile task_t* current_task = 0;
@@ -27,6 +27,7 @@ void schedule(interrupt_frame_t* frame) {
     if (current_task_ticks >= TASK_MAX_TICKS) {
         current_task_ticks = 0;
 
+       // printf("\n");
         // pick next task
         current_task = current_task->next;
 

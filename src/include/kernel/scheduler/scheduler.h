@@ -6,9 +6,9 @@
 
 typedef enum {
     SCHED_STATE_OFF = 0,
-    SCHED_STATE_READY = 2,
-    SCHED_STATE_STARTING = 3,
-    SCHED_STATE_RUNNING = 4,
+    SCHED_STATE_READY = 1,
+    SCHED_STATE_STARTING = 2,
+    SCHED_STATE_RUNNING = 3,
 } scheduler_state_t;
 
 typedef struct task {

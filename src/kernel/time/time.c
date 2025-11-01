@@ -2,6 +2,7 @@
 #include <arch/i686/idt.h>
 #include <arch/i686/ports.h>
 #include <arch/i686/io.h>
+#include <arch/i686/pic.h>
 #include <lib/stdio.h>
 
 #define PIT_FREQUENCY 1193180
@@ -34,10 +35,8 @@ void clock_init(uint32_t frequency) {
     outb(PIT_CHANNEL0, (uint8_t)(divisor & 0xFF));       // Send low byte
     outb(PIT_CHANNEL0, (uint8_t)((divisor >> 8) & 0xFF)); // Send high byte
 
-    // Register the IRQ handler for the timer (IRQ0)
-    printf("reg timer\n");
     isr_register_handler(irq_to_vector(0), timer_interrupt_handler);
-    printf("reg timer done\n");
+    pic_clear_mask(0); // Unmask IRQ0 (PIT)
 }
 
 int register_timer_callback(timer_callback_t callback) {
