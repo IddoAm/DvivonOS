@@ -1,62 +1,88 @@
-ENTRY(_start)
+ENTRY (_start)
+
+KERNEL_VIRT = 0xC0000000;
+KERNEL_PHYS = 0x00200000;    /* physical load addr (usual 1MiB) */
+PAGE = 4096;
+VMA_BASE = KERNEL_VIRT + KERNEL_PHYS;
 
 SECTIONS
 {
-    /* Kernel start at 2 MB */
-    . = 2M;
-    _kernel_start = .;
+    /* Put multiboot header at the start of the file image (within first 8KiB). */
+    . = KERNEL_PHYS;
+	/* The kernel will live at 3GB + 1MB in the virtual address space, */
+	/* which will be mapped to 1MB in the physical address space. */
+	/* Note that we page-align the sections. */
 
-    /* Multiboot header + .text */
-    .text BLOCK(4K) : ALIGN(4K)
+	_kernel_start = .;
+    .multiboot.data : {
+        *(.multiboot.data)
+    }
+
+    .multiboot.text : {
+        *(.multiboot.text)
+    }
+
+    /* Switch to the kernel virtual base (3GB + 1MiB) for VMA placement. */
+    . += KERNEL_VIRT;
+    /*_kernel_start = .;*/
+
+    /* text/rodata/data/bss: VMA at high half, LMA mapped to KERNEL_PHYS region */
+    .text : AT(KERNEL_PHYS + (ADDR(.text) - VMA_BASE))
     {
-        *(.multiboot)
+        . = ALIGN(PAGE);
         *(.text)
     }
 
-    /* Read-only data */
-    .rodata BLOCK(4K) : ALIGN(4K)
+    .rodata : AT(KERNEL_PHYS + (ADDR(.rodata) - VMA_BASE))
     {
+        . = ALIGN(PAGE);
         *(.rodata)
     }
 
-    /* Initialized data */
-    .data BLOCK(4K) : ALIGN(4K)
+    .data : AT(KERNEL_PHYS + (ADDR(.data) - VMA_BASE))
     {
+        . = ALIGN(PAGE);
         *(.data)
     }
 
-    /* Uninitialized data (stack + globals) */
-    .bss BLOCK(4K) : ALIGN(4K)
+    .bss (NOLOAD) : AT(KERNEL_PHYS + (ADDR(.bss) - VMA_BASE))
     {
+        . = ALIGN(PAGE);
         *(COMMON)
         *(.bss)
+        *(.bootstrap_stack)
     }
 
-    .isr_table (NOLOAD) : ALIGN(4K)
+    /* keep your personal reserved sections */
+    .isr_table (NOLOAD) : AT(KERNEL_PHYS + (ADDR(.isr_table) - VMA_BASE))
     {
+        . = ALIGN(PAGE);
         isr_table_start = .;
-        . += 4k; /* 1 page for isr table: 256 ints, 4 max handlers per int */
+        . += PAGE;
         isr_table_end = .;
     }
 
-    .pmm_bitmap (NOLOAD) : ALIGN(4K)
+    .pmm_bitmap (NOLOAD) : AT(KERNEL_PHYS + (ADDR(.pmm_bitmap) - VMA_BASE))
     {
+        . = ALIGN(PAGE);
         _pmm_bitmap_start = .;
-        . += 1048576 / 8;   /* 1048576 is the max pages in 32 bit */
+        . += 1048576 / 8;    /* bytes reserved for bitmap example */
         _pmm_bitmap_end = .;
     }
 
-    .page_directory (NOLOAD) : ALIGN(4K)
+    .page_directory (NOLOAD) : AT(KERNEL_PHYS + (ADDR(.page_directory) - VMA_BASE))
     {
+        . = ALIGN(PAGE);
         _page_directory_start = .;
-        . += 4k;            /* 1 page for page directory */
+        . += PAGE;
         _page_directory_end = .;
     }
 
-    .page_tables (NOLOAD) : ALIGN(4K)
+    .page_tables (NOLOAD) : AT(KERNEL_PHYS + (ADDR(.page_tables) - VMA_BASE))
     {
+        . = ALIGN(PAGE);
         _page_tables_start = .;
-        . += 256 * 4k; /* 256 is the amount of page tables in 1 GB of higher half kernel memory */
+        . += 256 * PAGE;
         _page_tables_end = .;
     }
 
