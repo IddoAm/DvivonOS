@@ -15,10 +15,11 @@ typedef struct task {
     interrupt_frame_t* context;
     void (*entry)(void);
     struct task* next; 
+    uint32_t page_directory;
     uint8_t state;
 } task_t;
 
 void scheduler_init();
-void task_init(task_t* t, void (*entry)(void), uint32_t* stack_top);
+void task_init(task_t* t, void (*entry)(void), uint32_t* stack_top, uint32_t pd_phys);
 
 #endif

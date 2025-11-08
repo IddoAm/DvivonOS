@@ -45,8 +45,22 @@ void shell_loop3(){
 
 void kernel_main(uint32_t magic, uint32_t addr) 
 {
-	// todo: move this to terminal file
-    stdio_interface_t vga_interface = {
+	loader_init(magic, addr);
+
+	pmm_init(loader_get_memory_map(), loader_get_memory_map_length());
+	vmm_init();
+	gdt_init();
+	idt_init();
+	//vmm_map_kernel_hh(0xB8000, 0xB8000, PAGE_PRESENT | PAGE_RW);
+	pmm_remap_bitmap((uintptr_t)_pmm_bitmap_start + KERNEL_HIGHER_HALF);
+
+	vmm_remove_identity_mapping();
+	after_vmm:
+	//isr_register_handler(irq_to_vector(1), keyboard_callback);
+
+	clock_init(100); // 100 Hz
+
+	stdio_interface_t vga_interface = {
         .init = vga_initialize,
         .clear = vga_clear,
         .putc = vga_putchar,
@@ -55,43 +69,39 @@ void kernel_main(uint32_t magic, uint32_t addr)
     stdio_set_interface(&vga_interface);
 	stdio_init();
 	printf("Welcome to Iddo and Hillel amazing os!!!!\n");
+	int* x = (int*)kmalloc(sizeof(int));
+	*x = 123456;
+	printf("kmalloc test: %d\n", *x);
+	for(volatile int i=0;i<1000000000;i++);
+	printf("phys address of x: %x\n", vmm_virt_to_phys((uint32_t)x));
 
-	loader_init(magic, addr);
-
-	gdt_init();
-	idt_init();
-	
-	isr_register_handler(irq_to_vector(1), keyboard_callback);
-
-	clock_init(100); // 100 Hz
-
-	printf("la\n");
-
-	pmm_init(loader_get_memory_map(), loader_get_memory_map_length());
-	vmm_init();
-
-	printf("la\n");
+	/*
 
 	task_t shell_task1;
 	uint32_t* shell_stack1 = (uint32_t*)kmalloc(4*PAGE_SIZE);
-	task_init(&shell_task1, shell_loop1, shell_stack1 + (4*PAGE_SIZE)/sizeof(uint32_t));
+	uint32_t shell_pd1 = vmm_create_page_directory();
+	task_init(&shell_task1, shell_loop1, shell_stack1 + (4*PAGE_SIZE)/sizeof(uint32_t), shell_pd1);
 
 	printf("la\n");
 
 	task_t shell_task2;
 	uint32_t* shell_stack2 = (uint32_t*)kmalloc(4*PAGE_SIZE);
-	task_init(&shell_task2, shell_loop2, shell_stack2 + (4*PAGE_SIZE)/sizeof(uint32_t));
+	uint32_t shell_pd2 = vmm_create_page_directory();
+	task_init(&shell_task2, shell_loop2, shell_stack2 + (4*PAGE_SIZE)/sizeof(uint32_t), shell_pd2);
 
 	task_t shell_task3;
 	uint32_t* shell_stack3 = (uint32_t*)kmalloc(4*PAGE_SIZE);
-	task_init(&shell_task3, shell_loop3, shell_stack3 + (4*PAGE_SIZE)/sizeof(uint32_t));
+	uint32_t shell_pd3 = vmm_create_page_directory();
+	task_init(&shell_task3, shell_loop3, shell_stack3 + (4*PAGE_SIZE)/sizeof(uint32_t), shell_pd3);
 	
-	scheduler_init();
+	//scheduler_init();
+
+	*/
 
 	printf("la\n");
 	printf("bambam");
 	while(true) {
-		printf("e");
+		
 	}
 }
 

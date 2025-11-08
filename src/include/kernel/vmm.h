@@ -29,12 +29,14 @@ static inline uint32_t get_flags(page_table_entry_t entry) {
     return entry & 0xFFF;
 }
 
+extern void enable_paging(uint32_t page_directory_phys, uint32_t kernel_entry);
+extern uint32_t read_cr3(void);
+extern void write_cr3(uint32_t cr3);
+extern void reload_cr3(uint32_t cr3);
+extern void invlpg(void* addr);
+
 extern uint32_t _page_directory_start[];
 extern uint32_t _page_tables_start[];
-
-
-extern void enable_paging(uint32_t page_directory_phys, uint32_t kernel_entry);
-
 
 void vmm_init();
 
@@ -52,6 +54,15 @@ typedef struct free_list {
 
 uintptr_t kernel_vmm_alloc_page();
 void kernel_vvmm_free_page(const uintptr_t addr);
+
+void vmm_map_kernel_hh(uint32_t vaddr, uint32_t phys_addr, uint32_t flags);
+uint32_t vmm_virt_to_phys(uint32_t vaddr);
+void vmm_remove_identity_mapping();
+uint32_t vmm_create_page_directory();
+void vmm_switch_page_directory(uint32_t cr3_phys);
+void vmm_flush_tlb();
+void vmm_invalidate_page(void* vaddr);
+uint32_t vmm_get_current_cr3();
 
 
 #endif

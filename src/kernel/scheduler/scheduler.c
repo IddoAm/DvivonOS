@@ -1,6 +1,8 @@
 #include <kernel/scheduler/scheduler.h>
 #include <lib/stdio.h>
 #include <lib/string.h> // for memset
+#include <kernel/vmm.h>
+
 
 
 #define TASK_MAX_TICKS 10
@@ -33,6 +35,9 @@ void schedule(interrupt_frame_t* frame) {
 
         // overwrite IRQ frame with next task's context
         memcpy(frame, current_task->context, sizeof(interrupt_frame_t));
+
+        // Switch memory space
+        vmm_switch_page_directory(current_task->page_directory);
     }
 }
 
@@ -42,11 +47,12 @@ void scheduler_init() {
 
     isr_register_handler(irq_to_vector(0), (interrupt_handler_t)schedule);
     state = SCHED_STATE_STARTING;
-    for (;;) asm volatile("hlt"); 
+    for (;;) asm volatile("hlt");
+    
 }
 
 // Initialize a single task
-void task_init(task_t* task, void (*entry)(void), uint32_t* stack_top) {
+void task_init(task_t* task, void (*entry)(void), uint32_t* stack_top, uint32_t pd_phys) {
     interrupt_frame_t* frame = (interrupt_frame_t*)(stack_top - sizeof(interrupt_frame_t)/sizeof(uint32_t));
     memset(frame, 0, sizeof(*frame));
 
@@ -67,6 +73,7 @@ void task_init(task_t* task, void (*entry)(void), uint32_t* stack_top) {
     task->context = frame;
     task->entry = entry;
     task->state = 0; // READY
+    task->page_directory = pd_phys;
 
     // add to circular list
     if (!task_list_head) {

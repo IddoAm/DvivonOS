@@ -8,6 +8,8 @@
 #include <drivers/vga.h>
 #include <lib/stdio.h>
 #include <lib/string.h>
+
+#include <kernel/memory_defs.h>
 /*
 void pic_remap(void) {
     unsigned char a1, a2;
@@ -100,7 +102,8 @@ void idt_init(void) {
     memset(isr_table_start, 0, INTURRUPT_COUNT * MAX_HANDELERS_PER_INTURRUPT * sizeof(uint32_t));
 
     _idtr.limit = sizeof(idt) - 1;
-    _idtr.base  = (uint32_t)&idt;
+    //_idtr.base  = (uint32_t)&idt;
+    _idtr.base = (uint32_t)((uintptr_t)&idt[0] + KERNEL_HIGHER_HALF);
 
     for (int i = 0; i < 32; i++) {
         idt_set_gate(i, (uint32_t)exceptions[i], 0x08, 0x8E);

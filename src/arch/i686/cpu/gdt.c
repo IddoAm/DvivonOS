@@ -1,5 +1,6 @@
 // gdt.h
 #include <stdint.h>
+#include <kernel/memory_defs.h>
 
 struct __attribute__((packed)) gdt_entry {
     uint16_t limit_low;     // bits 0..15 of limit
@@ -37,7 +38,8 @@ void gdt_init(void)
 {
     // pointer tells CPU size-1 and address
     gp.limit = sizeof(gdt) - 1;
-    gp.base  = (uint32_t)&gdt[0];
+    //gp.base  = (uint32_t)&gdt[0];
+    gp.base = (uint32_t)((uintptr_t)&gdt[0] + KERNEL_HIGHER_HALF);
 
     // 0) null
     gdt_set_entry(0, 0, 0, 0, 0);

@@ -39,11 +39,39 @@ enable_paging:
 # reload_cr3(uint32_t cr3_phys)
 # cdecl stack:
 #   [esp+4] = cr3_phys
-
-    .section .text
     .globl reload_cr3
     .type  reload_cr3, @function
 reload_cr3:
     movl 4(%esp), %eax
     movl %eax, %cr3
+    ret
+
+
+# write_cr3(uint32_t cr3_phys)
+# Simply write CR3 (no reload logic)
+# cdecl: [esp+4] = cr3_phys
+    .globl write_cr3
+    .type  write_cr3, @function
+write_cr3:
+    movl 4(%esp), %eax
+    movl %eax, %cr3
+    ret
+
+
+# read_cr3() -> uint32_t
+# Returns CR3 in EAX
+    .globl read_cr3
+    .type  read_cr3, @function
+read_cr3:
+    movl %cr3, %eax
+    ret
+
+
+# invlpg(void* vaddr)
+# cdecl: [esp+4] = virtual address to invalidate
+    .globl invlpg
+    .type  invlpg, @function
+invlpg:
+    movl 4(%esp), %eax
+    invlpg (%eax)
     ret

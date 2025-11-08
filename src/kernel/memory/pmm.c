@@ -17,13 +17,16 @@ static inline int test_bit(uint32_t bit, uint32_t* bitmap) {
 // in words
 static uint32_t usable_end_words;
 
+static uint32_t* pmm_bitmap;
+
 void pmm_init(const multiboot_mmap_entry_t* mmap, uint32_t length) {
     multiboot_mmap_entry_t* entry = (multiboot_mmap_entry_t*)mmap;
     uintptr_t mmap_end = (uintptr_t)mmap + length;
+    pmm_bitmap = _pmm_bitmap_start;
 
     // Set all pages as used initially
     for(uint32_t i = 0; i < MAX_PAGES / 32; i++){
-        _pmm_bitmap_start[i] = 0xFFFFFFFF;
+        pmm_bitmap[i] = 0xFFFFFFFF;
     }
 
     uint64_t usable_end = 0;
@@ -39,7 +42,7 @@ void pmm_init(const multiboot_mmap_entry_t* mmap, uint32_t length) {
 
             for (uint64_t addr = start; addr < end; addr += PAGE_SIZE) {
                 if (addr < 0x100000000ULL) { // only map first 4GiB in 32-bit mode
-                    clear_bit((uint32_t)(addr / PAGE_SIZE), _pmm_bitmap_start);
+                    clear_bit((uint32_t)(addr / PAGE_SIZE), pmm_bitmap);
                 }
             }
         }
@@ -50,22 +53,11 @@ void pmm_init(const multiboot_mmap_entry_t* mmap, uint32_t length) {
 
     // Reserve kernel memory
     for (uintptr_t addr = (uintptr_t)_kernel_start; addr < (uintptr_t)_kernel_end; addr += PAGE_SIZE) {
-        set_bit(addr / PAGE_SIZE, _pmm_bitmap_start);
+        set_bit(addr / PAGE_SIZE, pmm_bitmap);
     }
 
     printf("%d\n", usable_end_words);
     printf("bitmap size in words: %d\n", MEMORY_SPACE / PAGE_SIZE / BITMAP_ENTRY_BITS);
-    /*
-    for (uint32_t j = 0; j < _pmm_bitmap_start_length; j++) {
-        if(_pmm_bitmap_start[j] == 0xFFFFFFFF){
-            printf("1");
-        }else if(_pmm_bitmap_start[j] == 0){
-            printf("0");
-        }else{
-            printf("x");
-        } 
-    }
-    */
 }
 
 uint32_t last_alloc = 0;
@@ -97,6 +89,6 @@ void pmm_free_page(const uintptr_t addr) {
     clear_bit((uint32_t)page_index, _pmm_bitmap_start); // mark free
 }
 
-void adjust_bitmap_address_for_paging(){
-   
+void pmm_remap_bitmap(uintptr_t new_address){
+   pmm_bitmap = (uint32_t*)new_address;
 }

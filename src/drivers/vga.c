@@ -6,6 +6,7 @@
 #include <arch/i686/ports.h>
 
 #include <lib/string.h>
+#include <kernel/memory_defs.h>
 
 void vga_clear(void);
 
@@ -46,7 +47,7 @@ static inline uint16_t vga_entry(unsigned char uc, uint8_t color)
 size_t terminal_row;
 size_t terminal_column;
 uint8_t terminal_color;
-uint16_t* terminal_buffer = (uint16_t*)VGA_MEMORY;
+uint16_t* terminal_buffer = 0;
 
 
 void terminal_move_cursor(size_t row, size_t col) {
@@ -59,18 +60,21 @@ void terminal_move_cursor(size_t row, size_t col) {
     outb(VGA_DATA_PORT, pos & 0xFF);
 }
 
-void vga_initialize(void) 
+void vga_initialize(void)
 {
-	terminal_row = 0;
-	terminal_column = 0;
-	terminal_color = vga_entry_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
-	
-	for (size_t y = 0; y < VGA_HEIGHT; y++) {
-		for (size_t x = 0; x < VGA_WIDTH; x++) {
-			const size_t index = y * VGA_WIDTH + x;
-			terminal_buffer[index] = vga_entry(' ', terminal_color);
-		}
-	}
+    // point terminal_buffer to the HH-mapped VGA frame buffer
+    terminal_buffer = (uint16_t*)(KERNEL_HIGHER_HALF + VGA_MEMORY); // VGA_MEMORY == 0xB8000
+
+    terminal_row = 0;
+    terminal_column = 0;
+    terminal_color = vga_entry_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+
+    for (size_t y = 0; y < VGA_HEIGHT; y++) {
+        for (size_t x = 0; x < VGA_WIDTH; x++) {
+            const size_t index = y * VGA_WIDTH + x;
+            terminal_buffer[index] = vga_entry(' ', terminal_color);
+        }
+    }
 }
 
 void terminal_setcolor(uint8_t color) 

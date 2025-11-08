@@ -28,7 +28,6 @@ void vmm_init(void)
                        PAGE_PRESENT | PAGE_RW);
     }
 
-
     // Step 3: mirror into higher-half
     const uint32_t HH_PDE = PD_ENTRIES - PAGE_TABLE_COUNT; // 768
     for (uint32_t t = 0; t < PAGE_TABLE_COUNT; t++) {
@@ -41,10 +40,21 @@ void vmm_init(void)
     enable_paging((uint32_t)_page_directory_start, KERNEL_HIGHER_HALF);
     page_directory_hh = (uint32_t*)(KERNEL_HIGHER_HALF + (uintptr_t)_page_directory_start);
 
-    // TODO: Remove the identity mapping
-
+    //pmm_remap_bitmap((uintptr_t)_pmm_bitmap_start + KERNEL_HIGHER_HALF);
     paging_enabled = true;
-    //adjust_bitmap_address_for_paging();
+}
+
+void vmm_remove_identity_mapping(){
+    const uint32_t phys_base = (uint32_t)_kernel_start; 
+    const uint32_t phys_end  = (uint32_t)_kernel_end;
+
+    const uint32_t identity_end    = (phys_end + PAGE_TABLE_SIZE - 1) & ~(PAGE_TABLE_SIZE - 1);
+    const uint32_t identity_pages  = identity_end / PAGE_SIZE;
+    const uint32_t identity_tables = (identity_pages + PT_ENTRIES - 1) / PT_ENTRIES;
+    for (uint32_t t = 0; t < identity_tables; t++) {
+        page_directory_hh[t] = 0; // clear PDE
+    }
+    vmm_flush_tlb();
 }
 
 
@@ -101,7 +111,7 @@ static inline void vmm_map_kernel_page(uint32_t vaddr, uint32_t phys_addr, uint3
     __asm__ volatile("invlpg (%0)" ::"r"(vaddr) : "memory");
 }
 
-static inline void vmm_map_kernel_hh(uint32_t vaddr, uint32_t phys_addr, uint32_t flags) {
+void vmm_map_kernel_hh(uint32_t vaddr, uint32_t phys_addr, uint32_t flags) {
     // Derive PD and PT indices
     uint32_t pd_index = (vaddr >> 22) & 0x3FF;
     uint32_t pt_index = (vaddr >> 12) & 0x3FF;
@@ -213,4 +223,29 @@ void kernel_vvmm_free_page(const uintptr_t addr){
 
     printf("Freeing vaddr: %x which maps to phys_addr: %x\n", addr, vmm_virt_to_phys(addr));
     printf("free_list.count = %d\n", free_list.count);
+}
+
+uint32_t vmm_create_page_directory(){
+    return 0;
+}
+
+void vmm_switch_page_directory(uint32_t cr3_phys)
+{
+    write_cr3(cr3_phys);
+}
+
+void vmm_flush_tlb(void)
+{
+    uint32_t cr3 = read_cr3();
+    reload_cr3(cr3);
+}
+
+void vmm_invalidate_page(void* vaddr)
+{
+    invlpg(vaddr);
+}
+
+uint32_t vmm_get_current_cr3(void)
+{
+    return read_cr3();
 }
