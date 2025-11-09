@@ -45,8 +45,6 @@ void shell_loop3(){
 
 void kernel_main(uint32_t magic, uint32_t addr) 
 {
-	for(volatile int i=0;i<10000000;i++);
-
 	// todo: move this to terminal file
     stdio_interface_t vga_interface = {
         .init = vga_initialize,

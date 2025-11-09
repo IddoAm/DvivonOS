@@ -41,12 +41,12 @@ static inline uint16_t vga_entry(unsigned char uc, uint8_t color)
 
 #define VGA_WIDTH   80
 #define VGA_HEIGHT  25
-#define VGA_MEMORY  0xB8000 
+#define VGA_MEMORY_HIGHER_HALF  0xC03FF000
 
 size_t terminal_row;
 size_t terminal_column;
 uint8_t terminal_color;
-uint16_t* terminal_buffer = (uint16_t*)VGA_MEMORY;
+uint16_t* terminal_buffer = (uint16_t*)VGA_MEMORY_HIGHER_HALF;
 
 
 void terminal_move_cursor(size_t row, size_t col) {
