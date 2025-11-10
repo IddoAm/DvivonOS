@@ -1,7 +1,7 @@
 ENTRY (_start)
 
 KERNEL_VIRT = 0xC0000000;
-KERNEL_PHYS = 0x00200000;    /* physical load addr (usual 1MiB) */
+KERNEL_PHYS = 0x00200000;  
 PAGE = 4096;
 VMA_BASE = KERNEL_VIRT + KERNEL_PHYS;
 

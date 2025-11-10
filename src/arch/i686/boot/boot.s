@@ -18,6 +18,12 @@ stack_bottom:
 .skip 16384
 stack_top:
 
+.align 4
+multiboot_copy:
+.skip 4096
+multiboot_copy_end:
+
+
 .set HIGHER_HALF_BASE, 0xC0000000
 
 .extern _page_directory_start
@@ -31,13 +37,25 @@ stack_top:
 .type _start, @function
 _start:
     # Save multiboot registers (caller of kernel_main expects magic in eax, info in ebx)
-    push %ebx
-    push %eax
-
     # Set up a physical stack before enabling paging:
     movl $stack_top, %ebp
     subl $HIGHER_HALF_BASE, %ebp    # ebp = stack_top_phys
     movl %ebp, %esp
+
+	# Push original multiboot info address
+	push %ebx
+
+	# Copy the multiboot info (up to 4 KB)
+    movl %ebx, %esi              # ESI = source (physical)
+    movl $multiboot_copy, %edi   # EDI = destination (virtual)
+	subl $HIGHER_HALF_BASE, %edi 
+    movl $1024, %ecx             # 4KB / 4 = 1024 dwords
+    rep movsl                    # copy 4KB of data
+	movl $multiboot_copy, %ebx
+
+	push %ebx
+    push %eax
+
 
     # Compute physical addresses at runtime:
     movl $_page_tables_start, %ebx
@@ -137,22 +155,26 @@ map_kernel_pdes:
     #addl $HIGHER_HALF_BASE, %eax
     jmp *%eax
 
-	.size _start, . - _start
-
-	.section .text
+.size _start, . - _start
+.section .text
 _higher_half_entry:
+	pop %eax   # magic
+    pop %ebx   # restore mb info virtual
+	pop %ecx   # restore mb info physical
+
+
+
     movl $stack_top, %esp
 
     # Unmap the identity mapping (PDE[0]) now that we're in higher half
-    movl $_page_directory_start, %eax
-    movl $0, (%eax)          # Clear PDE[0]
+    movl $_page_directory_start, %edx
+    movl $0, (%edx)          # Clear PDE[0]
     
     # Flush TLB by reloading CR3
-    movl %cr3, %eax
-    movl %eax, %cr3
+    movl %cr3, %edx
+    movl %edx, %cr3
     # Restore multiboot args into registers and call kernel_main:
-    pop %eax   # restore magic (was pushed first)
-    pop %ebx   # restore mb info
+	push %ecx
     push %ebx
     push %eax
     call kernel_main

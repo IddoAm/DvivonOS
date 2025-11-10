@@ -94,6 +94,7 @@ static isr_t* const irqs[16] = {
 
 
 void idt_init(void) {
+    printf("RAAAAAAAA");
     pic_disable_all();
     pic_remap(0x20, 0x28);
 
@@ -116,7 +117,7 @@ void idt_init(void) {
 
 void isr_common_handler(interrupt_frame_t* frame) {
     // Check if there are handlers registered for this interrupt
-
+  //  printf("LALA");
     for(int i=0;i<MAX_HANDELERS_PER_INTURRUPT;i++){
         if((interrupt_handler_t)isr_table_start[frame->int_no * MAX_HANDELERS_PER_INTURRUPT + i]){
             uintptr_t ptr = (uintptr_t)isr_table_start[frame->int_no * MAX_HANDELERS_PER_INTURRUPT + i];

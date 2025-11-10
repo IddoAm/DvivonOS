@@ -16,6 +16,8 @@
 #include <kernel/time/time.h>
 #include <kernel/scheduler/scheduler.h>
 
+#include<arch/i686/pic.h>
+
 void shell_loop2(){
 	printf("tests");
 	while(true){
@@ -43,7 +45,7 @@ void shell_loop3(){
 	}
 }
 
-void kernel_main(uint32_t magic, uint32_t addr) 
+void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) 
 {
 	// todo: move this to terminal file
     stdio_interface_t vga_interface = {
@@ -54,19 +56,40 @@ void kernel_main(uint32_t magic, uint32_t addr)
     };
     stdio_set_interface(&vga_interface);
 	stdio_init();
-	printf("Welcome to Iddo and Hillel amazing os!!!!\n");
-	/*
-	loader_init(magic, addr);
+	printf("Welcome to Iddo's and hillel's amazing OS\n");
+
+	loader_init(magic, virt_addr, phys_addr);
+
+	
+	multiboot_mmap_entry_t* mmap = loader_get_memory_map();
+	uint32_t mmap_end = loader_get_memory_map_length() + (uintptr_t)mmap;
+	while ((uintptr_t)mmap < (mmap_end)) {
+    	printf("Region: base=0x%x%x, len=0x%x%x, type=%d\n",
+           (uint32_t)(mmap->addr >> 32), (uint32_t)mmap->addr,
+           (uint32_t)(mmap->len >> 32), (uint32_t)mmap->len,
+           mmap->type);
+
+   		mmap = (multiboot_mmap_entry_t*)((uintptr_t)mmap + mmap->size + sizeof(mmap->size));
+	}
+	
 
 	gdt_init();
 	idt_init();
 	
 	isr_register_handler(irq_to_vector(1), keyboard_callback);
+	pic_clear_mask(1);
 
 	clock_init(100); // 100 Hz
-	*/	
-	while(true) {
-		
+	key_event event;
+
+	while(true){
+
+		if(keyboard_read(&event)){
+			if(event.type == KEY_CHAR){
+				putc(event.c);
+			}
+		}
+		__asm__ volatile ("hlt");
 	}
 }
 
