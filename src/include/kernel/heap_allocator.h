@@ -14,7 +14,6 @@ typedef struct block_header {
     uint32_t size_and_flags;
 } block_header_t;
 
-
 typedef struct free_block_header {
     uint32_t size_and_flags;
     struct free_block_header* next_free;
@@ -30,6 +29,8 @@ typedef struct free_block_header {
 
 static free_block_header_t* free_list_head = NULL;
 static uint32_t heap_pages = 0;
+static uintptr_t heap_start = 0; 
+static uintptr_t heap_end = 0;
 
 uintptr_t kmalloc(uint32_t size);
 void kfree(uintptr_t ptr);

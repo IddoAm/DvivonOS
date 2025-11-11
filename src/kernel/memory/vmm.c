@@ -1,216 +1,158 @@
+// kernel/vmm.c
 #include <kernel/vmm.h>
 #include <kernel/memory_defs.h>
 #include <kernel/pmm.h>
 #include <lib/stdio.h>
 #include <lib/string.h>
 
-static uint32_t* page_directory_hh;
-
-void vmm_init(void)
-{
-    const uint32_t phys_base = (uint32_t)_kernel_start; 
-    const uint32_t phys_end  = (uint32_t)_kernel_end;
-
-    // Step 0: identity range
-    const uint32_t identity_end    = (phys_end + PAGE_TABLE_SIZE - 1) & ~(PAGE_TABLE_SIZE - 1);
-    const uint32_t identity_pages  = identity_end / PAGE_SIZE;
-    const uint32_t identity_tables = (identity_pages + PT_ENTRIES - 1) / PT_ENTRIES;
-
-    // Step 1: fill identity PTEs
-    for (uint32_t i = 0; i < identity_pages; i++) {
-        set_page_entry(&_page_tables_start[i], i * PAGE_SIZE, PAGE_PRESENT | PAGE_RW);
-    }
-
-    // Step 2: link PDEs for identity
-    for (uint32_t t = 0; t < identity_tables; t++) {
-        set_page_entry(&_page_directory_start[t],
-                       (uint32_t)_page_tables_start + t * PAGE_SIZE,
-                       PAGE_PRESENT | PAGE_RW);
-    }
-
-
-    // Step 3: mirror into higher-half
-    const uint32_t HH_PDE = PD_ENTRIES - PAGE_TABLE_COUNT; // 768
-    for (uint32_t t = 0; t < PAGE_TABLE_COUNT; t++) {
-        set_page_entry(&_page_directory_start[HH_PDE + t],
-                       (uint32_t)_page_tables_start + t * PAGE_SIZE,
-                       PAGE_PRESENT | PAGE_RW);
-    }
-    
-    // Step 4: enable paging
-    enable_paging((uint32_t)_page_directory_start, KERNEL_HIGHER_HALF);
-    page_directory_hh = (uint32_t*)(KERNEL_HIGHER_HALF + (uintptr_t)_page_directory_start);
-
-    // TODO: Remove the identity mapping
-
-    paging_enabled = true;
-    //adjust_bitmap_address_for_paging();
-}
-
-
-uint32_t vmm_virt_to_phys(uint32_t vaddr) {
-    uint32_t pd_index = (vaddr >> 22) & 0x3FF;
-    uint32_t pt_index = (vaddr >> 12) & 0x3FF;
-    uint32_t page_offset = vaddr & 0xFFF;
-
-    // Access PDE through higher-half page directory pointer
-    uint32_t pde = page_directory_hh[pd_index];
-    if (!(pde & PAGE_PRESENT)) return 0;  // not mapped
-
-    // Physical address of page table
-    uint32_t pt_phys = pde & 0xFFFFF000;
-
-    // Access PT via higher-half mapping (assuming you have PTs mirrored in HH)
-    uint32_t* pt = (uint32_t*)(KERNEL_HIGHER_HALF + pt_phys);
-    uint32_t pte = pt[pt_index];
-    if (!(pte & PAGE_PRESENT)) return 0;  // not mapped
-
-    // Return physical address of the actual page + offset
-    return (pte & 0xFFFFF000) + page_offset;
-}
-
-static inline int vmm_is_mapped(uint32_t vaddr) {
-    uint32_t pd_index = (vaddr >> 22) & 0x3FF;
-    uint32_t pt_index = (vaddr >> 12) & 0x3FF;
-
-    uint32_t pde = page_directory_hh[pd_index];
-    if (!(pde & PAGE_PRESENT)) return 0;
-
-    uint32_t* pt = (uint32_t*)(KERNEL_HIGHER_HALF + (pde & 0xFFFFF000));
-    return (pt[pt_index] & PAGE_PRESENT) ? 1 : 0;
-}
-
-static inline void vmm_map_kernel_page(uint32_t vaddr, uint32_t phys_addr, uint32_t flags) {
-    uint32_t pd_index = (vaddr >> 22) & 0x3FF;
-    uint32_t pt_index = (vaddr >> 12) & 0x3FF;
-
-    uint32_t pde = page_directory_hh[pd_index];
-    uint32_t* pt;
-    if (!(pde & PAGE_PRESENT)) {
-        // Allocate a page for the page table
-        uint32_t pt_phys = pmm_alloc_page();
-        page_directory_hh[pd_index] = pt_phys | PAGE_PRESENT | PAGE_RW;
-        pt = (uint32_t*)(KERNEL_HIGHER_HALF + pt_phys);
-        memset(pt, 0, PAGE_SIZE);
-    } else {
-        uint32_t pt_phys = pde & 0xFFFFF000;
-        pt = (uint32_t*)(KERNEL_HIGHER_HALF + pt_phys);
-    }
-
-    pt[pt_index] = phys_addr | flags;
-    __asm__ volatile("invlpg (%0)" ::"r"(vaddr) : "memory");
-}
-
-static inline void vmm_map_kernel_hh(uint32_t vaddr, uint32_t phys_addr, uint32_t flags) {
-    // Derive PD and PT indices
-    uint32_t pd_index = (vaddr >> 22) & 0x3FF;
-    uint32_t pt_index = (vaddr >> 12) & 0x3FF;
-
-    // Kernel higher-half PDEs start at 768
-    const uint32_t hh_base_pd_index = PD_ENTRIES - PAGE_TABLE_COUNT; // 1024 - 256 = 768
-
-    // Calculate PT offset into the linker-allocated .page_tables
-    uint32_t pt_offset = pd_index - hh_base_pd_index;
-
-    // Direct pointer into the preallocated tables
-    uint32_t* pt = &_page_tables_start[pt_offset * PT_ENTRIES];
-
-    // Write the PTE
-    pt[pt_index] = phys_addr | flags;
-
-    __asm__ volatile("invlpg (%0)" ::"r"(vaddr) : "memory");
-}
-
-static inline void vmm_unmap_page(uint32_t vaddr) {
-    uint32_t pd_index = (vaddr >> 22) & 0x3FF;
-    uint32_t pt_index = (vaddr >> 12) & 0x3FF;
-
-    uint32_t pde = page_directory_hh[pd_index];
-    if (!(pde & PAGE_PRESENT)) return; // Page table not present
-
-    uint32_t pt_phys = pde & 0xFFFFF000;
-    uint32_t* pt = (uint32_t*)(KERNEL_HIGHER_HALF + pt_phys);
-
-    pt[pt_index] = 0; // Unmap the page
-
-    __asm__ volatile("invlpg (%0)" ::"r"(vaddr) : "memory");
-}
-
-static free_list_t free_list;
-
+static free_list_t free_list = {0};
 static uintptr_t last_free = KERNEL_HIGHER_HALF;
 
-// Adds a node to the head of the list
+uint32_t vmm_read_cr3(void) {
+    uint32_t cr3;
+    __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
+    return cr3;
+}
+
+void vmm_write_cr3(uint32_t phys_addr) {
+    __asm__ volatile("mov %0, %%cr3" :: "r"(phys_addr) : "memory");
+}
+
+void vmm_flush_cr3(void) {
+    uint32_t cr3 = vmm_read_cr3();
+    vmm_write_cr3(cr3);
+}
+
+static inline void vmm_invlpg(void* addr) {
+    __asm__ volatile("invlpg (%0)" :: "r"(addr) : "memory");
+}
+
+static inline uint32_t pd_index(uint32_t v) { return (v >> 22) & 0x3FF; }
+static inline uint32_t pt_index(uint32_t v) { return (v >> 12) & 0x3FF; }
+
+uint32_t vmm_virt_to_phys(uint32_t vaddr) {
+    uint32_t pdi = pd_index(vaddr);
+    uint32_t pti = pt_index(vaddr);
+    uint32_t off = vaddr & 0xFFF;
+
+    uint32_t pde = _page_directory_start[pdi];
+    if (!(pde & PAGE_PRESENT)) return 0;
+
+    uint32_t pt_phys = pde & 0xFFFFF000;
+    uint32_t *pt_virt = (uint32_t*)(KERNEL_HIGHER_HALF + (uintptr_t)pt_phys);
+    uint32_t pte = pt_virt[pti];
+    if (!(pte & PAGE_PRESENT)) return 0;
+
+    return (pte & 0xFFFFF000) + off;
+}
+
+int vmm_is_mapped(uint32_t vaddr) {
+    uint32_t pde = _page_directory_start[pd_index(vaddr)];
+    if (!(pde & PAGE_PRESENT)) return 0;
+    uint32_t *pt = (uint32_t*)(KERNEL_HIGHER_HALF + (uintptr_t)(pde & 0xFFFFF000));
+    return (pt[pt_index(vaddr)] & PAGE_PRESENT) ? 1 : 0;
+}
+
+/* Map vaddr -> phys (create PT if needed). vaddr & phys_addr must be page-aligned. */
+void vmm_map_kernel_page(uint32_t vaddr, uint32_t phys_addr, uint32_t flags) {
+    uint32_t pdi = pd_index(vaddr);
+    uint32_t pti = pt_index(vaddr);
+
+    uint32_t pde = _page_directory_start[pdi];
+    uint32_t *pt_virt;
+
+    if (!(pde & PAGE_PRESENT)) {
+        uint32_t new_pt_phys = pmm_alloc_page();
+        if (!new_pt_phys) {
+            printf("vmm: pmm_alloc_page() failed\n");
+            return;
+        }
+        _page_directory_start[pdi] = (new_pt_phys & 0xFFFFF000) | (PAGE_PRESENT | PAGE_RW);
+        pt_virt = (uint32_t*)(KERNEL_HIGHER_HALF + (uintptr_t)new_pt_phys);
+        memset(pt_virt, 0, PAGE_SIZE);
+    } else {
+        uint32_t pt_phys = pde & 0xFFFFF000;
+        pt_virt = (uint32_t*)(KERNEL_HIGHER_HALF + (uintptr_t)pt_phys);
+    }
+
+    pt_virt[pti] = (phys_addr & 0xFFFFF000) | (flags & 0xFFF);
+    vmm_invlpg((void*)(uintptr_t)vaddr);
+}
+
+void vmm_unmap_page(uint32_t vaddr) {
+    uint32_t pdi = pd_index(vaddr);
+    uint32_t pti = pt_index(vaddr);
+
+    uint32_t pde = _page_directory_start[pdi];
+    if (!(pde & PAGE_PRESENT)) return;
+
+    uint32_t pt_phys = pde & 0xFFFFF000;
+    uint32_t *pt_virt = (uint32_t*)(KERNEL_HIGHER_HALF + (uintptr_t)pt_phys);
+
+    pt_virt[pti] = 0;
+    vmm_invlpg((void*)(uintptr_t)vaddr);
+}
+
+/* free-list ops */
 void free_list_add(free_list_t* list, free_list_node_t* node) {
     node->next = list->head;
     node->prev = NULL;
-
-    if (list->head)
-        list->head->prev = node;
-    else
-        list->tail = node;  // first element
-
+    if (list->head) list->head->prev = node;
+    else list->tail = node;
     list->head = node;
     list->count++;
 }
 
-// Pops a node from the tail of the list. Returns NULL if empty.
 free_list_node_t* free_list_pop(free_list_t* list) {
-    if (!list->tail)
-        return NULL;  // empty list
-
+    if (!list->tail) return NULL;
     free_list_node_t* node = list->tail;
     list->tail = node->prev;
-
-    if (list->tail)
-        list->tail->next = NULL;
-    else
-        list->head = NULL;  // list is now empty
-
+    if (list->tail) list->tail->next = NULL;
+    else list->head = NULL;
     node->next = node->prev = NULL;
     list->count--;
-
     return node;
 }
 
-uintptr_t kernel_vmm_alloc_page(){
+#define PAGE_ALIGN_UP(x)   (((uintptr_t)(x) + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1))
+
+uintptr_t kernel_vmm_alloc_page(void) {
     if (free_list.count > 0) {
-        printf("Allocating from free_list\n");
-        return (uintptr_t)free_list_pop(&free_list);
+        free_list_node_t* n = free_list_pop(&free_list);
+        return (uintptr_t)n;
     }
 
-    uintptr_t i = last_free;
+    uintptr_t start = PAGE_ALIGN_UP(last_free);
+    uintptr_t i = start;
     do {
-        if (!vmm_is_mapped(i)) {
-            uintptr_t phys_addr = pmm_alloc_page();
-            printf("Allocating phys_addr: %x for vaddr: %x\n", phys_addr, i);
-            vmm_map_kernel_hh(i, phys_addr, PAGE_PRESENT | PAGE_RW);
+        if (!vmm_is_mapped((uint32_t)i)) {
+            uint32_t phys = pmm_alloc_page();
+            printf("Allocated page at phys: %x\n", phys);
+            //if (!phys) return 0;
+            vmm_map_kernel_page((uint32_t)i, phys, PAGE_PRESENT | PAGE_RW);
             memset((void*)i, 0, PAGE_SIZE);
-            last_free = i;
+            last_free = i + PAGE_SIZE;
             return i;
         }
-
         i += PAGE_SIZE;
-        if (i >= MEMORY_SPACE) i = KERNEL_HIGHER_HALF;
+        if (i >= (uintptr_t)MEMORY_SPACE) i = (uintptr_t)KERNEL_HIGHER_HALF;
+    } while (i != start);
 
-    } while (i != last_free);
-
-    return 0; // Failed to allocate
-    
+    return 0;
 }
 
-void kernel_vvmm_free_page(const uintptr_t addr){
+void kernel_vmm_free_page(uintptr_t addr) {
     free_list_node_t* node = (free_list_node_t*)addr;
-
     free_list_add(&free_list, node);
 
-    if (free_list.count > VMM_FREE_LIST_MAX_SIZE) {
+    while (free_list.count > VMM_FREE_LIST_MAX_SIZE) {
         free_list_node_t* to_free = free_list_pop(&free_list);
-        uintptr_t phys_addr = vmm_virt_to_phys((uintptr_t)to_free);
-        pmm_free_page(phys_addr);
-        vmm_unmap_page((uintptr_t)to_free);
+        if (!to_free) break;
+        uintptr_t vaddr = (uintptr_t)to_free;
+        uint32_t phys = vmm_virt_to_phys((uint32_t)vaddr);
+        if (phys) {
+            vmm_unmap_page((uint32_t)vaddr);
+            pmm_free_page(phys);
+        }
     }
-
-    printf("Freeing vaddr: %x which maps to phys_addr: %x\n", addr, vmm_virt_to_phys(addr));
-    printf("free_list.count = %d\n", free_list.count);
 }

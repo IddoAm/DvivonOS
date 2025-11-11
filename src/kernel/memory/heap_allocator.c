@@ -1,3 +1,4 @@
+
 #include <kernel/heap_allocator.h>
 
 static inline block_header_t* get_footer(block_header_t* header) {
@@ -44,7 +45,9 @@ static inline void coalesce_blocks(free_block_header_t* a, free_block_header_t* 
 
 static inline void coalesce_with_next(free_block_header_t* block) {
     uintptr_t next_addr = (uintptr_t)block + GET_SIZE(block);
-    if (next_addr >= (uintptr_t)MEMORY_SPACE) return;
+    
+    // Check if next block is within heap bounds
+    if (next_addr >= heap_end) return;
 
     block_header_t* next_header = (block_header_t*)next_addr;
     if (IS_FREE(next_header)) {
@@ -53,8 +56,11 @@ static inline void coalesce_with_next(free_block_header_t* block) {
 }
 
 static inline void coalesce_with_prev(free_block_header_t* block) {
+    if ((uintptr_t)block <= heap_start) return;
+    
     block_header_t* prev_footer = (block_header_t*)((uintptr_t)block - sizeof(block_header_t));
-    if ((uintptr_t)prev_footer <= 0 || !IS_FREE(prev_footer)) return;
+    
+    if ((uintptr_t)prev_footer < heap_start || !IS_FREE(prev_footer)) return;
 
     free_block_header_t* prev_block =
         (free_block_header_t*)((uintptr_t)block - GET_SIZE(prev_footer));
@@ -80,6 +86,15 @@ static free_block_header_t* split_block(free_block_header_t* block, uint32_t wan
 static uintptr_t allocate_new_heap_page(void) {
     uintptr_t page = kernel_vmm_alloc_page();
     if (!page) return 0;
+
+    // Update heap boundaries
+    if (heap_start == 0) {
+        heap_start = page;
+        heap_end = page + PAGE_SIZE;
+    } else {
+        if (page < heap_start) heap_start = page;
+        if (page + PAGE_SIZE > heap_end) heap_end = page + PAGE_SIZE;
+    }
 
     heap_pages++;
     free_block_header_t* block = create_free_block(page, PAGE_SIZE);

@@ -48,8 +48,14 @@ void pmm_init(const multiboot_mmap_entry_t* mmap, uint32_t length) {
 
     usable_end_words = (usable_end / PAGE_SIZE / BITMAP_ENTRY_BITS);
 
-    // Reserve kernel memory
-    for (uintptr_t addr = (uintptr_t)_kernel_start; addr < (uintptr_t)_kernel_end; addr += PAGE_SIZE) {
+    // Reserve kernel memory - convert virtual addresses to physical
+    uintptr_t kernel_start_phys = (uintptr_t)_kernel_start - KERNEL_HIGHER_HALF;
+    uintptr_t kernel_end_phys = (uintptr_t)_kernel_end - KERNEL_HIGHER_HALF;
+    
+    for (uint32_t i = 0; i < 256 / 32; i++) {
+        _pmm_bitmap_start[i] = 0xFFFFFFFF;
+    }
+    for (uintptr_t addr = kernel_start_phys; addr < kernel_end_phys; addr += PAGE_SIZE) {
         set_bit(addr / PAGE_SIZE, _pmm_bitmap_start);
     }
 
@@ -78,7 +84,9 @@ uintptr_t pmm_alloc_page(void) {
         if (word != 0xFFFFFFFF) {
             int bit = __builtin_ffs(~word) - 1;  // first zero bit
             _pmm_bitmap_start[i] |= (1u << bit);
-            last_alloc = (i + 1) >= usable_end_words ? 0 : (i + 1);
+            // Don't increment last_alloc here - keep it at the same word
+            // It will naturally move to the next word when this one fills up
+            last_alloc = i;  // Stay at current word
             return ((uintptr_t)i * 32 + bit) * PAGE_SIZE;
         }
 
@@ -95,8 +103,4 @@ uintptr_t pmm_alloc_page(void) {
 void pmm_free_page(const uintptr_t addr) {
     uintptr_t page_index = (uintptr_t)addr / PAGE_SIZE;
     clear_bit((uint32_t)page_index, _pmm_bitmap_start); // mark free
-}
-
-void adjust_bitmap_address_for_paging(){
-   
 }

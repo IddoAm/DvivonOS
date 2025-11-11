@@ -75,6 +75,27 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr)
 
 	gdt_init();
 	idt_init();
+
+	pmm_init(loader_get_memory_map(), loader_get_memory_map_length());
+
+	uint32_t* allocation = (uint32_t*)kmalloc(sizeof(uint32_t));
+	*allocation = 5;
+	printf("%d, %x\n", *allocation, allocation);
+	uint32_t* allocation2 = (uint32_t*)kmalloc(sizeof(uint32_t));
+	*allocation2 = 10;
+	printf("%d, %x\n", *allocation2, allocation2);
+	printf("%d, %x\n", *allocation, allocation);
+	printf("freeing second allocation\n");
+
+	kfree((uintptr_t)allocation2);
+
+
+	allocation2 = (uint32_t*)kmalloc(sizeof(uint32_t));
+	*allocation2 = 15;
+	printf("%d, %x\n", *allocation2, allocation2);
+	printf("%d, %x\n", *allocation, allocation);
+	kfree((uintptr_t)allocation);
+	kfree((uintptr_t)allocation2);
 	
 	isr_register_handler(irq_to_vector(1), keyboard_callback);
 	pic_clear_mask(1);
