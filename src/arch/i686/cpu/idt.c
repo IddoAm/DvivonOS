@@ -54,18 +54,18 @@ typedef struct {
 
 
 // The IDT
-__attribute__((aligned(0x10))) 
-static idt_entry idt[256];
+__attribute__((aligned(IDT_ALIGNMENT))) 
+static idt_entry idt[INTURRUPT_COUNT];
 
 static idtr _idtr;
 
 
 void idt_set_gate(uint8_t num, uint32_t base, uint16_t sel, uint8_t flags) {
-    idt[num].isr_low = (uint16_t)(base & 0xFFFF);
+    idt[num].isr_low = (uint16_t)(base & MASK_LOW_16BIT);
     idt[num].kernel_cs     = sel;
     idt[num].reserved = 0;
-    idt[num].attributes   = flags;     // e.g. 0x8E: present, ring0, 32-bit int gate
-    idt[num].isr_high = (uint16_t)((base >> 16) & 0xFFFF);
+    idt[num].attributes   = flags;     // e.g. IDT_INTERRUPT_GATE: present, ring0, 32-bit int gate
+    idt[num].isr_high = (uint16_t)((base >> SHIFT_HIGH_16BIT) & MASK_LOW_16BIT);
 }
 
 extern void idt_flush(idtr* idtp);
@@ -94,21 +94,20 @@ static isr_t* const irqs[16] = {
 
 
 void idt_init(void) {
-    printf("RAAAAAAAA");
     pic_disable_all();
-    pic_remap(0x20, 0x28);
+    pic_remap(PIC_MASTER_OFFSET, PIC_SLAVE_OFFSET);
 
     memset(isr_table_start, 0, INTURRUPT_COUNT * MAX_HANDELERS_PER_INTURRUPT * sizeof(uint32_t));
 
-    _idtr.limit = sizeof(idt) - 1;
+    _idtr.limit = sizeof(idt) - IDT_LIMIT_OFFSET;
     _idtr.base  = (uint32_t)&idt;
 
-    for (int i = 0; i < 32; i++) {
-        idt_set_gate(i, (uint32_t)exceptions[i], 0x08, 0x8E);
+    for (int i = 0; i < EXCEPTION_COUNT; i++) {
+        idt_set_gate(i, (uint32_t)exceptions[i], KERNEL_CS_SELECTOR, IDT_INTERRUPT_GATE);
     }
 
-    for (int i = 0; i < 16; i++) {
-        idt_set_gate(32 + i, (uint32_t)irqs[i], 0x08, 0x8E);
+    for (int i = 0; i < IRQ_COUNT; i++) {
+        idt_set_gate(EXCEPTION_COUNT + i, (uint32_t)irqs[i], KERNEL_CS_SELECTOR, IDT_INTERRUPT_GATE);
     }
 
     idt_flush(&_idtr);
@@ -126,11 +125,11 @@ void isr_common_handler(interrupt_frame_t* frame) {
     }
 
     // If the interrupt was from IRQ8 or higher, we need to send an EOI to the slave PIC
-    if (frame->int_no >= 40) {
-        outb(PIC_SLAVE_CMD, 0x20); // Send EOI to slave PIC
+    if (frame->int_no >= IRQ_SLAVE_THRESHOLD) {
+        outb(PIC_SLAVE_CMD, PIC_EOI); // Send EOI to slave PIC
     }
     // Always send an EOI to the master PIC
-    outb(PIC_MASTER_CMD, 0x20); // Send EOI to master PIC
+    outb(PIC_MASTER_CMD, PIC_EOI); // Send EOI to master PIC
 }
 
 
