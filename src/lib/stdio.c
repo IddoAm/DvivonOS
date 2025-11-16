@@ -1,8 +1,7 @@
 #include <lib/stdio.h>
 // #include <vga.h>
 
-
-static stdio_interface_t *active_interface = NULL;
+static stdio_interface_t* active_interface = NULL;
 // // Default interface, can be replaced by user-defined interfaces
 // static stdio_interface_t vga_interface = {
 //     .init = vga_initialize,
@@ -11,37 +10,43 @@ static stdio_interface_t *active_interface = NULL;
 //     .puts = vga_writestring
 // };
 
-void stdio_set_interface(stdio_interface_t *interface) {
+void stdio_set_interface(stdio_interface_t* interface) {
     active_interface = interface;
 }
 
-stdio_interface_t *stdio_get_interface(void) {
+stdio_interface_t* stdio_get_interface(void) {
     return active_interface;
 }
 
 // Modular stdio functions
 void stdio_init(void) {
     // if (!active_interface) active_interface = &vga_interface;
-    if (active_interface && active_interface->init) active_interface->init();
+    if (active_interface && active_interface->init)
+        active_interface->init();
 }
 
 void stdio_clear(void) {
-    if (active_interface && active_interface->clear) active_interface->clear();
+    if (active_interface && active_interface->clear)
+        active_interface->clear();
 }
 
 void putc(char c) {
-    if (active_interface && active_interface->putc) active_interface->putc(c);
+    // asm volatile("cli");
+    if (active_interface && active_interface->putc)
+        active_interface->putc(c);
+    // asm volatile("sti");
 }
 
-void puts(const char *str) {
-    if (active_interface && active_interface->puts) active_interface->puts(str);
+void puts(const char* str) {
+    if (active_interface && active_interface->puts)
+        active_interface->puts(str);
 }
 
-int printf(const char *format, ...) {
+int printf(const char* format, ...) {
     va_list args;
     va_start(args, format);
     int count = 0;
-    for (const char *p = format; *p; ++p) {
+    for (const char* p = format; *p; ++p) {
         if (*p == '%') {
             ++p;
             if (*p == 'c') {
@@ -49,9 +54,10 @@ int printf(const char *format, ...) {
                 putc(val);
                 ++count;
             } else if (*p == 's') {
-                const char *val = va_arg(args, const char *);
+                const char* val = va_arg(args, const char*);
                 puts(val);
-                while (*val++) ++count;
+                while (*val++)
+                    ++count;
             } else if (*p == 'd') {
                 int val = va_arg(args, int);
                 char buffer[20];
