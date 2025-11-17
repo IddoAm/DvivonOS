@@ -1,57 +1,90 @@
-/* The bootloader will look at this image and start execution at the symbol
-   designated as the entry point. */
-ENTRY(_start)
+ENTRY (_start)
 
-/* Tell where the various sections of the object files will be put in the final
-   kernel image. */
+KERNEL_VIRT = 0xC0000000;
+KERNEL_PHYS = 0x00200000;  
+PAGE = 4096;
+VMA_BASE = KERNEL_VIRT + KERNEL_PHYS;
+
 SECTIONS
 {
+    /* Put multiboot header at the start of the file image (within first 8KiB). */
+    . = KERNEL_PHYS;
+	/* The kernel will live at 3GB + 1MB in the virtual address space, */
+	/* which will be mapped to 1MB in the physical address space. */
+	/* Note that we page-align the sections. */
 
-	
-	/* It used to be universally recommended to use 1M as a start offset,
-	   as it was effectively guaranteed to be available under BIOS systems.
-	   However, UEFI has made things more complicated, and experimental data
-	   strongly suggests that 2M is a safer place to load. In 2016, a new
-	   feature was introduced to the multiboot2 spec to inform bootloaders
-	   that a kernel can be loaded anywhere within a range of addresses and
-	   will be able to relocate itself to run from such a loader-selected
-	   address, in order to give the loader freedom in selecting a span of
-	   memory which is verified to be available by the firmware, in order to
-	   work around this issue. This does not use that feature, so 2M was
-	   chosen as a safer option than the traditional 1M. */
-	. = 2M;
 	_kernel_start = .;
+    .multiboot.data : {
+        *(.multiboot.data)
+    }
 
-	/* First put the multiboot header, as it is required to be put very early
-	   in the image or the bootloader won't recognize the file format.
-	   Next we'll put the .text section. */
-	.text BLOCK(4K) : ALIGN(4K)
-	{
-		*(.multiboot)
-		*(.text)
-	}
+    .multiboot.text : {
+        *(.multiboot.text)
+    }
 
-	/* Read-only data. */
-	.rodata BLOCK(4K) : ALIGN(4K)
-	{
-		*(.rodata)
-	}
+    /* Switch to the kernel virtual base (3GB + 1MiB) for VMA placement. */
+    . += KERNEL_VIRT;
+    /*_kernel_start = .;*/
 
-	/* Read-write data (initialized) */
-	.data BLOCK(4K) : ALIGN(4K)
-	{
-		*(.data)
-	}
+    /* text/rodata/data/bss: VMA at high half, LMA mapped to KERNEL_PHYS region */
+    .text : AT(KERNEL_PHYS + (ADDR(.text) - VMA_BASE))
+    {
+        . = ALIGN(PAGE);
+        *(.text)
+    }
 
-	/* Read-write data (uninitialized) and stack */
-	.bss BLOCK(4K) : ALIGN(4K)
-	{
-		*(COMMON)
-		*(.bss)
-	}
+    .rodata : AT(KERNEL_PHYS + (ADDR(.rodata) - VMA_BASE))
+    {
+        . = ALIGN(PAGE);
+        *(.rodata)
+    }
 
-	_kernel_end = .;
+    .data : AT(KERNEL_PHYS + (ADDR(.data) - VMA_BASE))
+    {
+        . = ALIGN(PAGE);
+        *(.data)
+    }
 
-	/* The compiler may produce other sections, by default it will put them in
-	   a segment with the same name. Simply add stuff here as needed. */
+    .bss (NOLOAD) : AT(KERNEL_PHYS + (ADDR(.bss) - VMA_BASE))
+    {
+        . = ALIGN(PAGE);
+        *(COMMON)
+        *(.bss)
+        *(.bootstrap_stack)
+    }
+
+    /* keep your personal reserved sections */
+    .isr_table (NOLOAD) : AT(KERNEL_PHYS + (ADDR(.isr_table) - VMA_BASE))
+    {
+        . = ALIGN(PAGE);
+        isr_table_start = .;
+        . += PAGE;
+        isr_table_end = .;
+    }
+
+    .pmm_bitmap (NOLOAD) : AT(KERNEL_PHYS + (ADDR(.pmm_bitmap) - VMA_BASE))
+    {
+        . = ALIGN(PAGE);
+        _pmm_bitmap_start = .;
+        . += 1048576 / 8;    /* bytes reserved for bitmap example */
+        _pmm_bitmap_end = .;
+    }
+
+    .page_directory (NOLOAD) : AT(KERNEL_PHYS + (ADDR(.page_directory) - VMA_BASE))
+    {
+        . = ALIGN(PAGE);
+        _page_directory_start = .;
+        . += PAGE;
+        _page_directory_end = .;
+    }
+
+    .page_tables (NOLOAD) : AT(KERNEL_PHYS + (ADDR(.page_tables) - VMA_BASE))
+    {
+        . = ALIGN(PAGE);
+        _page_tables_start = .;
+        . += 256 * PAGE;
+        _page_tables_end = .;
+    }
+
+    _kernel_end = .;
 }

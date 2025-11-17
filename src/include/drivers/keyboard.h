@@ -2,8 +2,12 @@
 #ifndef KEYBOARD_H
 #define KEYBOARD_H
 
-#include <stdint.h>
+#include <arch/i686/idt.h>
 #include <stdbool.h>
+#include <stdint.h>
+
+#define KEYBOARD_BUFFER_SIZE 256
+#define SCANCODE_MAP_SIZE 128
 
 typedef enum {
     KC_NONE = 0,
@@ -33,6 +37,6 @@ typedef struct {
 
 // Return false is buffer is empty
 bool keyboard_read(key_event* event);
-void keyboard_callback();
+void keyboard_callback(interrupt_frame_t* frame);
 
 #endif

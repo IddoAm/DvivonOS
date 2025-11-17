@@ -2,7 +2,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <kernel/os.h>
+#include <arch/i686/io.h>
+#include <arch/i686/ports.h>
+
 #include <lib/string.h>
 #include <drivers/vga.h>
 

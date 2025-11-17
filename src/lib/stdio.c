@@ -67,7 +67,7 @@ int printf(const char *format, ...) {
     va_list args;
     va_start(args, format);
     int count = 0;
-    for (const char *p = format; *p; ++p) {
+    for (const char* p = format; *p; ++p) {
         if (*p == '%') {
             ++p;
             if (*p == 'c') {
@@ -75,9 +75,10 @@ int printf(const char *format, ...) {
                 putc(val);
                 ++count;
             } else if (*p == 's') {
-                const char *val = va_arg(args, const char *);
+                const char* val = va_arg(args, const char*);
                 puts(val);
-                while (*val++) ++count;
+                while (*val++)
+                    ++count;
             } else if (*p == 'd') {
                 int val = va_arg(args, int);
                 char buffer[20];

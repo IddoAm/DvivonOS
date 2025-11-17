@@ -2,8 +2,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <arch/i686/io.h>
+#include <arch/i686/ports.h>
 #include <drivers/keyboard.h>
-#include <kernel/os.h>
 
 #define KBD_DATA 0x60
 

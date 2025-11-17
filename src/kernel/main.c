@@ -2,46 +2,96 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <lib/stdio.h>
 #include <arch/i686/gdt.h>
 #include <arch/i686/idt.h>
 #include <drivers/keyboard.h>
+#include <drivers/vga.h>
+#include <lib/stdio.h>
 
 #include <boot/loader.h>
-#include <kernel/pmm.h>
 
+#include <kernel/heap-allocator.h>
+#include <kernel/pmm.h>
+#include <kernel/scheduler/scheduler.h>
+#include <kernel/time/time.h>
+#include <kernel/vmm.h>
+
+#include <arch/i686/pic.h>
 #include <prog/terminal.h>
 
-void kernel_main(uint32_t magic, uint32_t addr) 
-{
-	loader_init(magic, addr);
+void shell_loop2() {
+    printf("tests");
+    while (true) {
 
-	gdt_init();
-	idt_init();
-	
-	irq_register_handler(1, keyboard_callback);
+        printf("#");
+        for (volatile int i = 0; i < 1000000; i++)
+            ;
+    }
+}
 
-	terminal_initialize();
+void shell_loop1() {
+    printf("tests");
+    while (true) {
 
-	// Print memory map
-	
-	multiboot_mmap_entry_t* mmap = loader_get_memory_map();
-	uint32_t mmap_end = loader_get_memory_map_length() + (uintptr_t)mmap;
-	while ((uintptr_t)mmap < (mmap_end)) {
-    	printf("Region: base=0x%x%x, len=0x%x%x, type=%d\n",
-           (uint32_t)(mmap->addr >> 32), (uint32_t)mmap->addr,
-           (uint32_t)(mmap->len >> 32), (uint32_t)mmap->len,
-           mmap->type);
+        printf("-");
+        for (volatile int i = 0; i < 1000000; i++)
+            ;
+    }
+}
 
-   		mmap = (multiboot_mmap_entry_t*)((uintptr_t)mmap + mmap->size + sizeof(mmap->size));
-	}
-	
+void shell_loop3() {
+    printf("tests");
+    while (true) {
 
-	pmm_init(loader_get_memory_map(), loader_get_memory_map_length());
-	
+        printf("+");
+        for (volatile int i = 0; i < 1000000; i++)
+            ;
+    }
+}
 
-	// Main Loop
+void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
+    loader_init(magic, virt_addr, phys_addr);
+    terminal_initialize();
+  
+    multiboot_mmap_entry_t* mmap = loader_get_memory_map();
+    uint32_t mmap_end = loader_get_memory_map_length() + (uintptr_t)mmap;
+    while ((uintptr_t)mmap < (mmap_end)) {
+        printf("Region: base=0x%x%x, len=0x%x%x, type=%d\n", (uint32_t)(mmap->addr >> 32),
+               (uint32_t)mmap->addr, (uint32_t)(mmap->len >> 32), (uint32_t)mmap->len, mmap->type);
 
+        mmap = (multiboot_mmap_entry_t*)((uintptr_t)mmap + mmap->size + sizeof(mmap->size));
+    }
+
+    gdt_init();
+    idt_init();
+
+    pmm_init(loader_get_memory_map(), loader_get_memory_map_length());
+
+    uint32_t* allocation = (uint32_t*)kmalloc(sizeof(uint32_t));
+    *allocation = 5;
+    printf("%d, %x\n", *allocation, allocation);
+    uint32_t* allocation2 = (uint32_t*)kmalloc(sizeof(uint32_t));
+    *allocation2 = 10;
+    printf("%d, %x\n", *allocation2, allocation2);
+    printf("%d, %x\n", *allocation, allocation);
+    printf("freeing second allocation\n");
+
+    kfree((uintptr_t)allocation2);
+
+    allocation2 = (uint32_t*)kmalloc(sizeof(uint32_t));
+    *allocation2 = 15;
+    printf("%d, %x\n", *allocation2, allocation2);
+    printf("%d, %x\n", *allocation, allocation);
+    kfree((uintptr_t)allocation);
+    kfree((uintptr_t)allocation2);
+
+    isr_register_handler(irq_to_vector(1), keyboard_callback);
+    pic_clear_mask(1);
+
+    clock_init(100); // 100 Hz
+    key_event event;
+
+  // Main Loop
 	key_event event;
 
 	while(true){
