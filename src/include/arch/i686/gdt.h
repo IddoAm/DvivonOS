@@ -26,4 +26,6 @@
 /* GDT granularity flags */
 #define GDT_GRANULARITY_FLAGS 0xC /* Granularity=1 (4KB pages), 32-bit=1 */
 
+void gdt_init(void);
+
 #endif
