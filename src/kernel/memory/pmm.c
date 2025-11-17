@@ -1,17 +1,17 @@
+#include <kernel/memory-defs.h>
 #include <kernel/pmm.h>
 #include <lib/stdio.h>
-#include <kernel/memory_defs.h>
 
 static inline void clear_bit(uint32_t bit, uint32_t* bitmap) {
-    bitmap[bit / 32] &= ~(1u << (bit % 32));
+    bitmap[bit / BITMAP_ENTRY_BITS] &= ~(1u << (bit % BITMAP_ENTRY_BITS));
 }
 
 static inline void set_bit(uint32_t bit, uint32_t* bitmap) {
-    bitmap[bit / 32] |= (1u << (bit % 32));
+    bitmap[bit / BITMAP_ENTRY_BITS] |= (1u << (bit % BITMAP_ENTRY_BITS));
 }
 
 static inline int test_bit(uint32_t bit, uint32_t* bitmap) {
-    return (bitmap[bit / 32] >> (bit % 32)) & 1u;
+    return (bitmap[bit / BITMAP_ENTRY_BITS] >> (bit % BITMAP_ENTRY_BITS)) & 1u;
 }
 
 // in words
@@ -22,8 +22,8 @@ void pmm_init(const multiboot_mmap_entry_t* mmap, uint32_t length) {
     uintptr_t mmap_end = (uintptr_t)mmap + length;
 
     // Set all pages as used initially
-    for(uint32_t i = 0; i < MAX_PAGES / 32; i++){
-        _pmm_bitmap_start[i] = 0xFFFFFFFF;
+    for (uint32_t i = 0; i < MAX_PAGES / BITMAP_ENTRY_BITS; i++) {
+        _pmm_bitmap_start[i] = BITMAP_ALL_BITS_SET;
     }
 
     uint64_t usable_end = 0;
@@ -31,14 +31,14 @@ void pmm_init(const multiboot_mmap_entry_t* mmap, uint32_t length) {
     while ((uintptr_t)entry < mmap_end) {
         if (entry->type == MULTIBOOT_MEMORY_AVAILABLE) {
             uint64_t start = (entry->addr + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
-            uint64_t end   = (entry->addr + entry->len) & ~(PAGE_SIZE - 1);
-            
-            if(usable_end < end){
+            uint64_t end = (entry->addr + entry->len) & ~(PAGE_SIZE - 1);
+
+            if (usable_end < end) {
                 usable_end = end;
             }
 
             for (uint64_t addr = start; addr < end; addr += PAGE_SIZE) {
-                if (addr < 0x100000000ULL) { // only map first 4GiB in 32-bit mode
+                if (addr < MEMORY_4GB_LIMIT) { // only map first 4GiB in 32-bit mode
                     clear_bit((uint32_t)(addr / PAGE_SIZE), _pmm_bitmap_start);
                 }
             }
@@ -48,8 +48,15 @@ void pmm_init(const multiboot_mmap_entry_t* mmap, uint32_t length) {
 
     usable_end_words = (usable_end / PAGE_SIZE / BITMAP_ENTRY_BITS);
 
-    // Reserve kernel memory
-    for (uintptr_t addr = (uintptr_t)_kernel_start; addr < (uintptr_t)_kernel_end; addr += PAGE_SIZE) {
+    // Reserve kernel memory - convert virtual addresses to physical
+    uintptr_t kernel_start_phys = (uintptr_t)_kernel_start - KERNEL_HIGHER_HALF;
+    uintptr_t kernel_end_phys = (uintptr_t)_kernel_end - KERNEL_HIGHER_HALF;
+
+    // Reserve first PAGE_TABLE_COUNT pages (for page tables)
+    for (uint32_t i = 0; i < PAGE_TABLE_COUNT / BITMAP_ENTRY_BITS; i++) {
+        _pmm_bitmap_start[i] = BITMAP_ALL_BITS_SET;
+    }
+    for (uintptr_t addr = kernel_start_phys; addr < kernel_end_phys; addr += PAGE_SIZE) {
         set_bit(addr / PAGE_SIZE, _pmm_bitmap_start);
     }
 
@@ -63,7 +70,7 @@ void pmm_init(const multiboot_mmap_entry_t* mmap, uint32_t length) {
             printf("0");
         }else{
             printf("x");
-        } 
+        }
     }
     */
 }
@@ -75,11 +82,13 @@ uintptr_t pmm_alloc_page(void) {
 
     do {
         uint32_t word = _pmm_bitmap_start[i];
-        if (word != 0xFFFFFFFF) {
-            int bit = __builtin_ffs(~word) - 1;  // first zero bit
+        if (word != BITMAP_ALL_BITS_SET) {
+            int bit = __builtin_ffs(~word) - 1; // first zero bit
             _pmm_bitmap_start[i] |= (1u << bit);
-            last_alloc = (i + 1) >= usable_end_words ? 0 : (i + 1);
-            return ((uintptr_t)i * 32 + bit) * PAGE_SIZE;
+            // Don't increment last_alloc here - keep it at the same word
+            // It will naturally move to the next word when this one fills up
+            last_alloc = i; // Stay at current word
+            return ((uintptr_t)i * BITMAP_ENTRY_BITS + bit) * PAGE_SIZE;
         }
 
         i++;
@@ -91,12 +100,7 @@ uintptr_t pmm_alloc_page(void) {
     return 0; // no free pages found
 }
 
-
 void pmm_free_page(const uintptr_t addr) {
     uintptr_t page_index = (uintptr_t)addr / PAGE_SIZE;
     clear_bit((uint32_t)page_index, _pmm_bitmap_start); // mark free
-}
-
-void adjust_bitmap_address_for_paging(){
-   
 }

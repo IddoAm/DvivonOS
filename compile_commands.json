@@ -1,0 +1,104 @@
+[
+{
+  "directory": "/home/linux/repos/os/build",
+  "command": "i686-elf-as  -I/home/linux/repos/os/src/include  -o CMakeFiles/kernel.elf.dir/src/arch/i686/boot/boot.s.o -c /home/linux/repos/os/src/arch/i686/boot/boot.s",
+  "file": "/home/linux/repos/os/src/arch/i686/boot/boot.s",
+  "output": "CMakeFiles/kernel.elf.dir/src/arch/i686/boot/boot.s.o"
+},
+{
+  "directory": "/home/linux/repos/os/build",
+  "command": "i686-elf-gcc  -I/home/linux/repos/os/src/include -ffreestanding -fno-stack-protector -fno-pic -Wall -Wextra -O2 -o CMakeFiles/kernel.elf.dir/src/arch/i686/cpu/gdt.c.o -c /home/linux/repos/os/src/arch/i686/cpu/gdt.c",
+  "file": "/home/linux/repos/os/src/arch/i686/cpu/gdt.c",
+  "output": "CMakeFiles/kernel.elf.dir/src/arch/i686/cpu/gdt.c.o"
+},
+{
+  "directory": "/home/linux/repos/os/build",
+  "command": "i686-elf-gcc  -I/home/linux/repos/os/src/include -ffreestanding -fno-stack-protector -fno-pic -Wall -Wextra -O2 -o CMakeFiles/kernel.elf.dir/src/arch/i686/cpu/idt.c.o -c /home/linux/repos/os/src/arch/i686/cpu/idt.c",
+  "file": "/home/linux/repos/os/src/arch/i686/cpu/idt.c",
+  "output": "CMakeFiles/kernel.elf.dir/src/arch/i686/cpu/idt.c.o"
+},
+{
+  "directory": "/home/linux/repos/os/build",
+  "command": "i686-elf-as  -I/home/linux/repos/os/src/include  -o CMakeFiles/kernel.elf.dir/src/arch/i686/cpu/interrupts.s.o -c /home/linux/repos/os/src/arch/i686/cpu/interrupts.s",
+  "file": "/home/linux/repos/os/src/arch/i686/cpu/interrupts.s",
+  "output": "CMakeFiles/kernel.elf.dir/src/arch/i686/cpu/interrupts.s.o"
+},
+{
+  "directory": "/home/linux/repos/os/build",
+  "command": "i686-elf-as  -I/home/linux/repos/os/src/include  -o CMakeFiles/kernel.elf.dir/src/arch/i686/cpu/lgdt.s.o -c /home/linux/repos/os/src/arch/i686/cpu/lgdt.s",
+  "file": "/home/linux/repos/os/src/arch/i686/cpu/lgdt.s",
+  "output": "CMakeFiles/kernel.elf.dir/src/arch/i686/cpu/lgdt.s.o"
+},
+{
+  "directory": "/home/linux/repos/os/build",
+  "command": "i686-elf-as  -I/home/linux/repos/os/src/include  -o CMakeFiles/kernel.elf.dir/src/arch/i686/memory/paging.s.o -c /home/linux/repos/os/src/arch/i686/memory/paging.s",
+  "file": "/home/linux/repos/os/src/arch/i686/memory/paging.s",
+  "output": "CMakeFiles/kernel.elf.dir/src/arch/i686/memory/paging.s.o"
+},
+{
+  "directory": "/home/linux/repos/os/build",
+  "command": "i686-elf-gcc  -I/home/linux/repos/os/src/include -ffreestanding -fno-stack-protector -fno-pic -Wall -Wextra -O2 -o CMakeFiles/kernel.elf.dir/src/boot/loader.c.o -c /home/linux/repos/os/src/boot/loader.c",
+  "file": "/home/linux/repos/os/src/boot/loader.c",
+  "output": "CMakeFiles/kernel.elf.dir/src/boot/loader.c.o"
+},
+{
+  "directory": "/home/linux/repos/os/build",
+  "command": "i686-elf-gcc  -I/home/linux/repos/os/src/include -ffreestanding -fno-stack-protector -fno-pic -Wall -Wextra -O2 -o CMakeFiles/kernel.elf.dir/src/drivers/keyboard.c.o -c /home/linux/repos/os/src/drivers/keyboard.c",
+  "file": "/home/linux/repos/os/src/drivers/keyboard.c",
+  "output": "CMakeFiles/kernel.elf.dir/src/drivers/keyboard.c.o"
+},
+{
+  "directory": "/home/linux/repos/os/build",
+  "command": "i686-elf-gcc  -I/home/linux/repos/os/src/include -ffreestanding -fno-stack-protector -fno-pic -Wall -Wextra -O2 -o CMakeFiles/kernel.elf.dir/src/drivers/vga.c.o -c /home/linux/repos/os/src/drivers/vga.c",
+  "file": "/home/linux/repos/os/src/drivers/vga.c",
+  "output": "CMakeFiles/kernel.elf.dir/src/drivers/vga.c.o"
+},
+{
+  "directory": "/home/linux/repos/os/build",
+  "command": "i686-elf-gcc  -I/home/linux/repos/os/src/include -ffreestanding -fno-stack-protector -fno-pic -Wall -Wextra -O2 -o CMakeFiles/kernel.elf.dir/src/kernel/main.c.o -c /home/linux/repos/os/src/kernel/main.c",
+  "file": "/home/linux/repos/os/src/kernel/main.c",
+  "output": "CMakeFiles/kernel.elf.dir/src/kernel/main.c.o"
+},
+{
+  "directory": "/home/linux/repos/os/build",
+  "command": "i686-elf-gcc  -I/home/linux/repos/os/src/include -ffreestanding -fno-stack-protector -fno-pic -Wall -Wextra -O2 -o CMakeFiles/kernel.elf.dir/src/kernel/memory/heap-allocator.c.o -c /home/linux/repos/os/src/kernel/memory/heap-allocator.c",
+  "file": "/home/linux/repos/os/src/kernel/memory/heap-allocator.c",
+  "output": "CMakeFiles/kernel.elf.dir/src/kernel/memory/heap-allocator.c.o"
+},
+{
+  "directory": "/home/linux/repos/os/build",
+  "command": "i686-elf-gcc  -I/home/linux/repos/os/src/include -ffreestanding -fno-stack-protector -fno-pic -Wall -Wextra -O2 -o CMakeFiles/kernel.elf.dir/src/kernel/memory/pmm.c.o -c /home/linux/repos/os/src/kernel/memory/pmm.c",
+  "file": "/home/linux/repos/os/src/kernel/memory/pmm.c",
+  "output": "CMakeFiles/kernel.elf.dir/src/kernel/memory/pmm.c.o"
+},
+{
+  "directory": "/home/linux/repos/os/build",
+  "command": "i686-elf-gcc  -I/home/linux/repos/os/src/include -ffreestanding -fno-stack-protector -fno-pic -Wall -Wextra -O2 -o CMakeFiles/kernel.elf.dir/src/kernel/memory/vmm.c.o -c /home/linux/repos/os/src/kernel/memory/vmm.c",
+  "file": "/home/linux/repos/os/src/kernel/memory/vmm.c",
+  "output": "CMakeFiles/kernel.elf.dir/src/kernel/memory/vmm.c.o"
+},
+{
+  "directory": "/home/linux/repos/os/build",
+  "command": "i686-elf-gcc  -I/home/linux/repos/os/src/include -ffreestanding -fno-stack-protector -fno-pic -Wall -Wextra -O2 -o CMakeFiles/kernel.elf.dir/src/kernel/scheduler/scheduler.c.o -c /home/linux/repos/os/src/kernel/scheduler/scheduler.c",
+  "file": "/home/linux/repos/os/src/kernel/scheduler/scheduler.c",
+  "output": "CMakeFiles/kernel.elf.dir/src/kernel/scheduler/scheduler.c.o"
+},
+{
+  "directory": "/home/linux/repos/os/build",
+  "command": "i686-elf-gcc  -I/home/linux/repos/os/src/include -ffreestanding -fno-stack-protector -fno-pic -Wall -Wextra -O2 -o CMakeFiles/kernel.elf.dir/src/kernel/time/time.c.o -c /home/linux/repos/os/src/kernel/time/time.c",
+  "file": "/home/linux/repos/os/src/kernel/time/time.c",
+  "output": "CMakeFiles/kernel.elf.dir/src/kernel/time/time.c.o"
+},
+{
+  "directory": "/home/linux/repos/os/build",
+  "command": "i686-elf-gcc  -I/home/linux/repos/os/src/include -ffreestanding -fno-stack-protector -fno-pic -Wall -Wextra -O2 -o CMakeFiles/kernel.elf.dir/src/lib/stdio.c.o -c /home/linux/repos/os/src/lib/stdio.c",
+  "file": "/home/linux/repos/os/src/lib/stdio.c",
+  "output": "CMakeFiles/kernel.elf.dir/src/lib/stdio.c.o"
+},
+{
+  "directory": "/home/linux/repos/os/build",
+  "command": "i686-elf-gcc  -I/home/linux/repos/os/src/include -ffreestanding -fno-stack-protector -fno-pic -Wall -Wextra -O2 -o CMakeFiles/kernel.elf.dir/src/lib/string.c.o -c /home/linux/repos/os/src/lib/string.c",
+  "file": "/home/linux/repos/os/src/lib/string.c",
+  "output": "CMakeFiles/kernel.elf.dir/src/lib/string.c.o"
+}
+]

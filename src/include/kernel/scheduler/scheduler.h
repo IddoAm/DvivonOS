@@ -1,8 +1,8 @@
 #ifndef SCHEDULER_H
 #define SCHEDULER_H
 
-#include <stdint.h>
 #include <arch/i686/idt.h>
+#include <stdint.h>
 
 typedef enum {
     SCHED_STATE_OFF = 0,
@@ -14,7 +14,7 @@ typedef enum {
 typedef struct task {
     interrupt_frame_t* context;
     void (*entry)(void);
-    struct task* next; 
+    struct task* next;
     uint8_t state;
 } task_t;
 

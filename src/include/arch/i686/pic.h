@@ -1,15 +1,14 @@
 #ifndef PIC_H
 #define PIC_H
 
-#include <stdint.h>
-#include "ports.h"
 #include "io.h"
+#include "ports.h"
+#include <stdint.h>
 
-#define PIC_EOI         0x20
-#define ICW1_INIT       0x10
-#define ICW1_ICW4       0x01
-#define ICW4_8086       0x01
-
+#define PIC_EOI 0x20
+#define ICW1_INIT 0x10
+#define ICW1_ICW4 0x01
+#define ICW4_8086 0x01
 
 static inline void pic_send_eoi(uint8_t irq) {
     if (irq >= 8)
@@ -19,7 +18,7 @@ static inline void pic_send_eoi(uint8_t irq) {
 
 static inline void pic_remap(uint8_t offset1, uint8_t offset2) {
     uint8_t master_mask = inb(PIC_MASTER_DATA);
-    uint8_t slave_mask  = inb(PIC_SLAVE_DATA);
+    uint8_t slave_mask = inb(PIC_SLAVE_DATA);
 
     // Start initialization sequence (cascade mode)
     outb(PIC_MASTER_CMD, ICW1_INIT | ICW1_ICW4);
