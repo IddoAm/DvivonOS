@@ -17,6 +17,7 @@
 #include <kernel/vmm.h>
 
 #include <arch/i686/pic.h>
+#include <prog/terminal.h>
 
 void shell_loop2() {
     printf("tests");
@@ -49,15 +50,9 @@ void shell_loop3() {
 }
 
 void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
-    // todo: move this to terminal file
-    stdio_interface_t vga_interface = {
-        .init = vga_initialize, .clear = vga_clear, .putc = vga_putchar, .puts = vga_writestring};
-    stdio_set_interface(&vga_interface);
-    stdio_init();
-    printf("Welcome to Iddo's and hillel's amazing OS\n");
-
     loader_init(magic, virt_addr, phys_addr);
-
+    terminal_initialize();
+  
     multiboot_mmap_entry_t* mmap = loader_get_memory_map();
     uint32_t mmap_end = loader_get_memory_map_length() + (uintptr_t)mmap;
     while ((uintptr_t)mmap < (mmap_end)) {
@@ -96,13 +91,13 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
     clock_init(100); // 100 Hz
     key_event event;
 
-    while (true) {
+  // Main Loop
+	key_event event;
 
-        if (keyboard_read(&event)) {
-            if (event.type == KEY_CHAR) {
-                putc(event.c);
-            }
-        }
-        __asm__ volatile("hlt");
-    }
+	while(true){
+		if(keyboard_read(&event)){
+			terminal_handle_keypress(event);
+		}
+		__asm__ volatile ("hlt");
+	}
 }

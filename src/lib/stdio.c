@@ -1,48 +1,69 @@
 #include <lib/stdio.h>
-// #include <vga.h>
+#include <lib/string.h>
+#include <drivers/vga.h>
 
-static stdio_interface_t* active_interface = NULL;
-// // Default interface, can be replaced by user-defined interfaces
-// static stdio_interface_t vga_interface = {
-//     .init = vga_initialize,
-//     .clear = vga_clear,
-//     .putc = vga_putchar,
-//     .puts = vga_writestring
-// };
 
-void stdio_set_interface(stdio_interface_t* interface) {
-    active_interface = interface;
+stdio_interface_t active_interface = {
+    .clear = NULL,
+    .init = NULL,
+    .putc = NULL,
+    .puts = NULL
+};
+
+
+void _set_color(std_color_t color) {
+    uint8_t vga_color = vga_get_col();
+    vga_color = (vga_color & 0xF0) | color; // clear current text color
+    vga_set_color(vga_color);
 }
 
-stdio_interface_t* stdio_get_interface(void) {
-    return active_interface;
+void stdio_set_interface(stdio_interface_t *interface) {
+    if (interface) {
+        if (interface->clear) active_interface.clear = interface->clear;
+        if (interface->init) active_interface.init = interface->init;
+        if (interface->putc) active_interface.putc = interface->putc;
+        if (interface->puts) active_interface.puts = interface->puts;
+    }
+}
+
+stdio_interface_t *stdio_get_interface(void) {
+    return &active_interface;
 }
 
 // Modular stdio functions
 void stdio_init(void) {
     // if (!active_interface) active_interface = &vga_interface;
-    if (active_interface && active_interface->init)
-        active_interface->init();
+    if (active_interface.init) {active_interface.init();}
+    else {
+        active_interface.clear = vga_clear;
+        active_interface.putc = vga_putchar;
+        active_interface.puts = vga_writestring;
+        active_interface.init = vga_initialize;
+        active_interface.init();
+    }
 }
 
 void stdio_clear(void) {
-    if (active_interface && active_interface->clear)
-        active_interface->clear();
+    if (active_interface.clear) active_interface.clear();
 }
 
 void putc(char c) {
-    // asm volatile("cli");
-    if (active_interface && active_interface->putc)
-        active_interface->putc(c);
-    // asm volatile("sti");
+    if (active_interface.putc) active_interface.putc(c);
 }
 
-void puts(const char* str) {
-    if (active_interface && active_interface->puts)
-        active_interface->puts(str);
+void puts(const char *str) {
+    if (active_interface.puts) active_interface.puts(str);
 }
 
-int printf(const char* format, ...) {
+// supported codes:
+// %c - character
+// %s - string
+// %d - decimal
+// %x - hexadecimal
+// %% - percent sign
+// %o - color sign
+int printf(const char *format, ...) {
+    uint8_t vga_color = vga_get_color();
     va_list args;
     va_start(args, format);
     int count = 0;
@@ -88,6 +109,9 @@ int printf(const char* format, ...) {
                     putc(buffer[i]);
                     ++count;
                 }
+            } else if (*p == 'o') {
+                std_color_t color = va_arg(args, std_color_t);
+                _set_color(color);
             } else if (*p == '%') {
                 putc('%');
                 ++count;
@@ -101,6 +125,8 @@ int printf(const char* format, ...) {
             ++count;
         }
     }
+    //restore the color
+    vga_set_color(vga_color);
     va_end(args);
     return count;
 }

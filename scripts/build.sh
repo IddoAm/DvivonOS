@@ -23,5 +23,5 @@ if [ ! -f Makefile ]; then
 	cmake ..
 fi
 
-# Build kernel.elf only
-make kernel.elf
+# Build kernel.elf only with max speed
+make -j$(nproc) kernel.elf
