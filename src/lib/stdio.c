@@ -10,32 +10,10 @@ stdio_interface_t active_interface = {
     .puts = NULL
 };
 
-//only support font color change
-//support three letter colors:
-// red - red
-// blu - blue
-// gre - green
-// lgr - light grey
-// ADD IF WANT MORE
-void _set_color(char* color) {
-    // invalid color code
-    if (strlen(color) != 3) {
-        printf("%oInvalid color code, %s", "red", color);
-        return;
-    }
+
+void _set_color(std_color_t color) {
     uint8_t vga_color = vga_get_col();
-    if (memcmp(color, "red", 3) == 0) {
-        vga_color = (vga_color & 0xF0) | VGA_COLOR_RED; // set text color to red
-    } else if (memcmp(color, "blu", 3) == 0) {
-        vga_color = (vga_color & 0xF0) | VGA_COLOR_BLUE; // set text color to blue
-    } else if (memcmp(color, "gre", 3) == 0) {
-        vga_color = (vga_color & 0xF0) | VGA_COLOR_GREEN; // set text color to green
-    } else if (memcmp(color, "lgr", 3) == 0) {
-        vga_color = (vga_color & 0xF0) | VGA_COLOR_LIGHT_GREY; // set text color to light grey
-    } else {
-        printf("%oInvalid color code, %s", "red", color);
-        return;
-    }
+    vga_color = (vga_color & 0xF0) | color; // clear current text color
     vga_set_color(vga_color);
 }
 
@@ -131,7 +109,7 @@ int printf(const char *format, ...) {
                     ++count;
                 }
             } else if (*p == 'o') {
-                char* color = va_arg(args, char*);
+                std_color_t color = va_arg(args, std_color_t);
                 _set_color(color);
             } else if (*p == '%') {
                 putc('%');
