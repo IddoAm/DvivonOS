@@ -9,7 +9,7 @@
 #include <drivers/vga.h>
 
 
-#define VGA_MEMORY  0xB8000 
+#define VGA_MEMORY  0xC03FF000
 
 size_t vga_row;
 size_t vga_column;

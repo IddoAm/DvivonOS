@@ -51,6 +51,10 @@ void shell_loop3() {
 
 void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
     loader_init(magic, virt_addr, phys_addr);
+    gdt_init();
+    idt_init();
+    isr_register_handler(irq_to_vector(1), keyboard_callback);
+
     terminal_initialize();
   
     multiboot_mmap_entry_t* mmap = loader_get_memory_map();
@@ -62,8 +66,7 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
         mmap = (multiboot_mmap_entry_t*)((uintptr_t)mmap + mmap->size + sizeof(mmap->size));
     }
 
-    gdt_init();
-    idt_init();
+   
 
     pmm_init(loader_get_memory_map(), loader_get_memory_map_length());
 
@@ -85,15 +88,12 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
     kfree((uintptr_t)allocation);
     kfree((uintptr_t)allocation2);
 
-    isr_register_handler(irq_to_vector(1), keyboard_callback);
     pic_clear_mask(1);
 
     clock_init(100); // 100 Hz
+    
+    // Main Loop
     key_event event;
-
-  // Main Loop
-	key_event event;
-
 	while(true){
 		if(keyboard_read(&event)){
 			terminal_handle_keypress(event);
