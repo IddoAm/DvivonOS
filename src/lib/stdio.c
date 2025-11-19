@@ -12,9 +12,7 @@ stdio_interface_t active_interface = {
 
 
 void _set_color(std_color_t color) {
-    uint8_t vga_color = vga_get_col();
-    vga_color = (vga_color & 0xF0) | color; // clear current text color
-    vga_set_color(vga_color);
+    vga_set_color(color);
 }
 
 void stdio_set_interface(stdio_interface_t *interface) {

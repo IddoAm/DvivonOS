@@ -60,8 +60,6 @@ void pmm_init(const multiboot_mmap_entry_t* mmap, uint32_t length) {
         set_bit(addr / PAGE_SIZE, _pmm_bitmap_start);
     }
 
-    printf("%d\n", usable_end_words);
-    printf("bitmap size in words: %d\n", MEMORY_SPACE / PAGE_SIZE / BITMAP_ENTRY_BITS);
     /*
     for (uint32_t j = 0; j < _pmm_bitmap_start_length; j++) {
         if(_pmm_bitmap_start[j] == 0xFFFFFFFF){

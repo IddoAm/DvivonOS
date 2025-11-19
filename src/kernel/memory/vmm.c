@@ -71,7 +71,7 @@ void vmm_map_kernel_page(uint32_t vaddr, uint32_t phys_addr, uint32_t flags) {
     if (!(pde & PAGE_PRESENT)) {
         uint32_t new_pt_phys = pmm_alloc_page();
         if (!new_pt_phys) {
-            printf("vmm: pmm_alloc_page() failed\n");
+            printf("%ovmm: pmm_alloc_page() failed\n", STD_COLOR_RED);
             return;
         }
         _page_directory_start[pdi] = (new_pt_phys & PAGE_FRAME_MASK) | (PAGE_PRESENT | PAGE_RW);
@@ -140,7 +140,6 @@ uintptr_t kernel_vmm_alloc_page(void) {
     do {
         if (!vmm_is_mapped((uint32_t)i)) {
             uint32_t phys = pmm_alloc_page();
-            printf("Allocated page at phys: %x\n", phys);
             // if (!phys) return 0;
             vmm_map_kernel_page((uint32_t)i, phys, PAGE_PRESENT | PAGE_RW);
             memset((void*)i, 0, PAGE_SIZE);

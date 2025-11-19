@@ -127,7 +127,7 @@ void isr_common_handler(interrupt_frame_t* frame) {
 }
 
 void isr_register_handler(uint8_t num, interrupt_handler_t handler) {
-    printf("int %d\n", num);
+    printf("starting to handle interrupt number%o %d\n", STD_COLOR_LIGHT_RED, num);
     isr_table_start[num * MAX_HANDELERS_PER_INTURRUPT] = (uint32_t)handler;
 }
 void isr_unregister_handler(uint8_t num, interrupt_handler_t handler) {

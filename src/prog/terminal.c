@@ -46,7 +46,7 @@ void _scroll_down_once(void)
 void terminal_initialize(void) {
     stdio_init();
     vga_set_eof_handler(_scroll_down_once);
-	printf("Welcome to Iddo and Hillel amazing os!!!!\n");
+	printf("%oWelcome to Iddo and Hillel amazing os!!!!\n", STD_COLOR_MAGENTA);
 }
 
 void terminal_handle_keypress(key_event event) {

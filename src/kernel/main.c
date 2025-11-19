@@ -53,15 +53,19 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
     loader_init(magic, virt_addr, phys_addr);
     gdt_init();
     idt_init();
+    terminal_initialize();
+    
     isr_register_handler(irq_to_vector(1), keyboard_callback);
 
-    terminal_initialize();
   
+    printf("%omaping all the memory regions.\n  %o1. %ofor usable, \n  %o2. %ofor reserved\n", 
+        STD_COLOR_LIGHT_BLUE, 1, STD_COLOR_LIGHT_BLUE, 2, STD_COLOR_LIGHT_BLUE);
+
     multiboot_mmap_entry_t* mmap = loader_get_memory_map();
     uint32_t mmap_end = loader_get_memory_map_length() + (uintptr_t)mmap;
     while ((uintptr_t)mmap < (mmap_end)) {
-        printf("Region: base=0x%x%x, len=0x%x%x, type=%d\n", (uint32_t)(mmap->addr >> 32),
-               (uint32_t)mmap->addr, (uint32_t)(mmap->len >> 32), (uint32_t)mmap->len, mmap->type);
+        printf("Region: base=0x%x%x, len=0x%x%x, type=%o%d\n", (uint32_t)(mmap->addr >> 32),
+               (uint32_t)mmap->addr, (uint32_t)(mmap->len >> 32), (uint32_t)mmap->len, mmap->type, mmap->type);
 
         mmap = (multiboot_mmap_entry_t*)((uintptr_t)mmap + mmap->size + sizeof(mmap->size));
     }
@@ -70,21 +74,23 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
 
     pmm_init(loader_get_memory_map(), loader_get_memory_map_length());
 
+    printf("%oTesting kernel heap allocator:\n", STD_COLOR_LIGHT_BLUE);
+
     uint32_t* allocation = (uint32_t*)kmalloc(sizeof(uint32_t));
     *allocation = 5;
-    printf("%d, %x\n", *allocation, allocation);
+    printf("Storing %d, in %x\n", *allocation, allocation);
     uint32_t* allocation2 = (uint32_t*)kmalloc(sizeof(uint32_t));
     *allocation2 = 10;
-    printf("%d, %x\n", *allocation2, allocation2);
-    printf("%d, %x\n", *allocation, allocation);
+    printf("Storing %d, in %x\n", *allocation2, allocation2);
+    printf("Check that %d is still at %x\n", *allocation, allocation);
     printf("freeing second allocation\n");
 
     kfree((uintptr_t)allocation2);
 
     allocation2 = (uint32_t*)kmalloc(sizeof(uint32_t));
     *allocation2 = 15;
-    printf("%d, %x\n", *allocation2, allocation2);
-    printf("%d, %x\n", *allocation, allocation);
+    printf("Storing %d, in %x\n", *allocation2, allocation2);
+    printf("Check that %d is still at %x\n", *allocation, allocation);
     kfree((uintptr_t)allocation);
     kfree((uintptr_t)allocation2);
 
@@ -92,6 +98,24 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
 
     clock_init(100); // 100 Hz
     
+    // print all the colors
+    printf("%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo\n", 
+    STD_COLOR_BLACK,
+	STD_COLOR_BLUE,
+	STD_COLOR_GREEN,
+	STD_COLOR_CYAN,
+	STD_COLOR_RED,
+	STD_COLOR_MAGENTA,
+	STD_COLOR_BROWN,
+	STD_COLOR_LIGHT_GREY,
+	STD_COLOR_DARK_GREY,
+	STD_COLOR_LIGHT_BLUE,
+	STD_COLOR_LIGHT_GREEN,
+	STD_COLOR_LIGHT_CYAN,
+	STD_COLOR_LIGHT_RED,
+	STD_COLOR_LIGHT_MAGENTA,
+	STD_COLOR_LIGHT_BROWN,
+	STD_COLOR_WHITE);
     // Main Loop
     key_event event;
 	while(true){
