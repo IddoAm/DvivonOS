@@ -1,5 +1,5 @@
-#ifndef heap-allocator_H
-#define heap-allocator_H
+#ifndef HEAP_ALLOCATOR_H
+#define HEAP_ALLOCATOR_H
 
 #include <kernel/memory-defs.h>
 #include <kernel/vmm.h>

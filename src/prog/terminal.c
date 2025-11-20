@@ -1,6 +1,6 @@
-#include <prog/terminal.h>
-#include <lib/stdio.h>
 #include <drivers/vga.h>
+#include <lib/stdio.h>
+#include <prog/terminal.h>
 
 bool _is_printable_ascii(uint8_t ascii) {
     return ascii >= ' ' && ascii <= '~';
@@ -21,8 +21,7 @@ void _handle_non_printable_ascii(uint8_t ascii) {
     }
 }
 
-void _scroll_down_once(void)
-{
+void _scroll_down_once(void) {
     // move all the lines one up
     uint16_t* vga_buffer = vga_get_buffer();
     for (size_t y = 1; y < VGA_HEIGHT; y++) {
@@ -40,21 +39,20 @@ void _scroll_down_once(void)
     // move cursor to the beginning of the last line
     vga_set_col(0);
     vga_set_row(vga_get_row() - 1);
-	vga_move_cursor(vga_get_row(), vga_get_col());
+    vga_move_cursor(vga_get_row(), vga_get_col());
 }
 
 void terminal_initialize(void) {
     stdio_init();
     vga_set_eof_handler(_scroll_down_once);
-	printf("%oWelcome to Iddo and Hillel amazing os!!!!\n", STD_COLOR_MAGENTA);
+    printf("%oWelcome to Iddo and Hillel amazing os!!!!\n", STD_COLOR_MAGENTA);
 }
 
 void terminal_handle_keypress(key_event event) {
     if (event.pressed && event.ascii) {
         if (_is_printable_ascii(event.ascii)) {
             putc(event.ascii);
-        }else
-        {
+        } else {
             _handle_non_printable_ascii(event.ascii);
         }
     }

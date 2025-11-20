@@ -10,7 +10,8 @@ static uint32_t mmap_length;
 
 void loader_init(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
     if (magic != MULTIBOOT_MAGIC)
-        for (;;);
+        for (;;)
+            ;
 
     multiboot_info_t* mb_info = (multiboot_info_t*)virt_addr;
 

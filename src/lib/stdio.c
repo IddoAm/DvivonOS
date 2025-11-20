@@ -1,38 +1,36 @@
+#include <drivers/vga.h>
 #include <lib/stdio.h>
 #include <lib/string.h>
-#include <drivers/vga.h>
 
-
-stdio_interface_t active_interface = {
-    .clear = NULL,
-    .init = NULL,
-    .putc = NULL,
-    .puts = NULL
-};
-
+stdio_interface_t active_interface = {.clear = NULL, .init = NULL, .putc = NULL, .puts = NULL};
 
 void _set_color(std_color_t color) {
     vga_set_color(color);
 }
 
-void stdio_set_interface(stdio_interface_t *interface) {
+void stdio_set_interface(stdio_interface_t* interface) {
     if (interface) {
-        if (interface->clear) active_interface.clear = interface->clear;
-        if (interface->init) active_interface.init = interface->init;
-        if (interface->putc) active_interface.putc = interface->putc;
-        if (interface->puts) active_interface.puts = interface->puts;
+        if (interface->clear)
+            active_interface.clear = interface->clear;
+        if (interface->init)
+            active_interface.init = interface->init;
+        if (interface->putc)
+            active_interface.putc = interface->putc;
+        if (interface->puts)
+            active_interface.puts = interface->puts;
     }
 }
 
-stdio_interface_t *stdio_get_interface(void) {
+stdio_interface_t* stdio_get_interface(void) {
     return &active_interface;
 }
 
 // Modular stdio functions
 void stdio_init(void) {
     // if (!active_interface) active_interface = &vga_interface;
-    if (active_interface.init) {active_interface.init();}
-    else {
+    if (active_interface.init) {
+        active_interface.init();
+    } else {
         active_interface.clear = vga_clear;
         active_interface.putc = vga_putchar;
         active_interface.puts = vga_writestring;
@@ -42,15 +40,18 @@ void stdio_init(void) {
 }
 
 void stdio_clear(void) {
-    if (active_interface.clear) active_interface.clear();
+    if (active_interface.clear)
+        active_interface.clear();
 }
 
 void putc(char c) {
-    if (active_interface.putc) active_interface.putc(c);
+    if (active_interface.putc)
+        active_interface.putc(c);
 }
 
-void puts(const char *str) {
-    if (active_interface.puts) active_interface.puts(str);
+void puts(const char* str) {
+    if (active_interface.puts)
+        active_interface.puts(str);
 }
 
 // supported codes:
@@ -60,7 +61,7 @@ void puts(const char *str) {
 // %x - hexadecimal
 // %% - percent sign
 // %o - color sign
-int printf(const char *format, ...) {
+int printf(const char* format, ...) {
     uint8_t vga_color = vga_get_color();
     va_list args;
     va_start(args, format);
@@ -123,7 +124,7 @@ int printf(const char *format, ...) {
             ++count;
         }
     }
-    //restore the color
+    // restore the color
     vga_set_color(vga_color);
     va_end(args);
     return count;
