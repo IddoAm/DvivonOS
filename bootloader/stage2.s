@@ -7,12 +7,13 @@
 */
 
 # Multiboot constants
-.equ MULTIBOOT_MAGIC, 0x1BADB002
+.equ MULTIBOOT_MAGIC, 0x2BADB002
 .equ MULTIBOOT_FLAGS, 0x00000003  # ALIGN | MEMINFO
 .equ MULTIBOOT_CHECKSUM, -(MULTIBOOT_MAGIC + MULTIBOOT_FLAGS)
 
 # Memory layout
-.equ KERNEL_LOAD_ADDR, 0x10000     # 64KB - where kernel will be loaded (16-bit accessible)
+.equ KERNEL_LOAD_ADDR, 0x200000    # 2MB - where kernel will be loaded (32-bit accessible)
+.equ KERNEL_TEMP_BUFFER, 0x10000   # Temporary buffer for loading in 16-bit mode
 .equ KERNEL_START_SECTOR, 4        # Kernel starts at sector 4 (after stage1 and stage2)
 .equ KERNEL_SECTORS, 32           # Maximum sectors to read for kernel
                                 # NOTE: This must match KERNEL_MAX_SECTORS in CMakeLists.txt
@@ -35,22 +36,12 @@ _start2:
     movw $a20_msg, %si
     call print_string
     
-    # Step 2: Load kernel directly to 0x00100000
-    call load_kernel
-    movw $kernel_loaded_msg, %si
+    # Step 2: Load kernel to temporary buffer (16-bit accessible)
+    call load_kernel_temp
+    movw $kernel_temp_loaded_msg, %si
     call print_string
     
-    # Step 3: Search for multiboot header and verify
-    call find_multiboot_header
-    test %ax, %ax
-    jz multiboot_error
-    movw $multiboot_found_msg, %si
-    call print_string
-    
-    # Step 4: Build multiboot info structure
-    call build_multiboot_info
-    
-    # Step 5: Set up GDT and switch to protected mode
+    # Step 3: Set up GDT and switch to protected mode
     call setup_gdt
     call enter_protected_mode
     
@@ -61,8 +52,6 @@ _start2:
 enable_a20:
     pusha
     
-    # Disable interrupts
-    cli
     
     # Wait for input buffer to be empty
     call wait_8042_input
@@ -109,9 +98,7 @@ enable_a20:
     
     # Wait for input buffer to be empty
     call wait_8042_input
-    
-    # Re-enable interrupts
-    sti
+
     
     popa
     ret
@@ -136,17 +123,16 @@ wait_8042_output:
     popa
     ret
 
-# Load kernel from disk directly to 0x10000
-load_kernel:
+# Load kernel from disk to temporary buffer (16-bit accessible)
+load_kernel_temp:
     pusha
     
     # Set up segment for 16-bit addressing
-    # We need to set ES to access memory at 64KB
     # ES:0x10000 = 0x1000:0x0000 (segment 0x1000, offset 0x0000)
     movw $0x1000, %ax
     movw %ax, %es
     
-    # Load kernel directly to 0x10000
+    # Load kernel to temporary buffer at 0x10000
     movw $0x0000, %bx     # Offset 0 in segment 0x1000 = 0x10000
     movb $KERNEL_START_SECTOR, %cl
     movb $KERNEL_SECTORS, %al
@@ -194,72 +180,6 @@ read_sectors:
     popa
     ret
 
-# Find multiboot header in loaded kernel
-find_multiboot_header:
-    pusha
-    
-    # Set up segment to access kernel at 0x10000
-    # ES:0x10000 = 0x1000:0x0000 (segment 0x1000, offset 0x0000)
-    movw $0x1000, %ax
-    movw %ax, %es
-    
-    # Start searching from kernel load address (0x10000)
-    movw $0x0000, %di   # Offset 0 in segment 0x1000 = 0x10000
-    mov $0x2000, %cx       # Search first 8KB (multiboot requirement)
-    
-.search_loop:
-    # Check if we have a valid multiboot header (32-bit comparison in 16-bit mode)
-    # Compare lower 16 bits first
-    cmp $0xB002, %es:(%di)        # Lower 16 bits of 0x1BADB002
-    jne .next_dword
-    
-    # Compare upper 16 bits
-    cmp $0x1BAD, %es:2(%di)       # Upper 16 bits of 0x1BADB002
-    je .found_header
-    
-.next_dword:
-    add $4, %di
-    sub $4, %cx
-    jnz .search_loop
-    
-    # Header not found
-    xor %ax, %ax
-    jmp .done
-    
-.found_header:
-    mov $1, %ax
-    
-.done:
-    # Store result in a variable for return
-    mov %ax, result
-    # Restore ES segment
-    xor %ax, %ax
-    movw %ax, %es
-    
-    popa
-    mov result, %ax      # Get result
-    ret
-
-# Build minimal multiboot info structure
-build_multiboot_info:
-    pusha
-    
-    # Get memory size using BIOS int 0x15, function 0xE820
-    mov $multiboot_info, %di
-    mov $0x1, (%di)  # flags = 1 (memory info available)
-    add $4, %di
-    
-    # Get lower memory (below 1MB)
-    int $0x12                 # Get memory size in KB
-    mov %ax, (%di)         # mem_lower
-    add $4, %di
-    
-    # Get upper memory (above 1MB) - simplified
-    mov $0x100000, (%di)    # mem_upper (1MB, simplified)
-    
-    popa
-    ret
-
 # Set up Global Descriptor Table
 setup_gdt:
     pusha
@@ -300,17 +220,146 @@ protected_mode_start:
     movw %ax, %ss
     
     # Set up stack
-    movl $0x90000, %esp
+    movl $0x30000, %esp
     
-    # Set up registers for kernel
+    # Step 1: Copy kernel from temporary buffer to final location
+    call copy_kernel_to_final
+    # Step 2: Search for multiboot header and verify
+    call find_multiboot_header_32
+    testl %eax, %eax
+    jz multiboot_error_32
+    # Step 3: Build multiboot info structure (in 32-bit mode)
+    call build_multiboot_info_32
+    
+    # Step 4: Set up registers for kernel
     movl $MULTIBOOT_MAGIC, %eax    # Magic number
-    movl $multiboot_info, %ebx     # Multiboot info structure
-    # Jump to kernel at 0x10000 (where we loaded it)
-    mov $0x10000, %edx
+    movl $multiboot_info_32, %ebx  # Multiboot info structure
+    # Jump to kernel entry point at 0x200000
+    # The linker sets ENTRY(_start) which should be at KERNEL_LOAD_ADDR
+    movl $KERNEL_LOAD_ADDR + 0xc, %edx
     jmp *%edx
 
-# Back to 16-bit code
-.code16
+# Copy kernel from temporary buffer to final location (0x200000)
+copy_kernel_to_final:
+    pusha
+    
+    # Calculate size: KERNEL_SECTORS * 512 bytes
+    movl $KERNEL_SECTORS, %ecx
+    shll $9, %ecx                  # Multiply by 512 (2^9)
+    
+    # Source: temporary buffer at 0x10000
+    movl $KERNEL_TEMP_BUFFER, %esi
+    # Destination: final location at 0x200000
+    movl $KERNEL_LOAD_ADDR, %edi
+    
+    # Copy using rep movsb
+    cld
+    rep movsb
+    
+    popa
+    ret
+
+# Find multiboot header in loaded kernel (32-bit mode)
+find_multiboot_header_32:
+    pusha
+    
+    # Start searching from kernel load address (0x200000)
+    movl $KERNEL_LOAD_ADDR, %eax
+    movl %eax, %edi
+    movl $0x2000, %ecx       # Search first 8KB (multiboot requirement)
+    
+.search_loop:
+    # Check if we have a valid multiboot header
+    # Read dword from memory first (safer for debugging) then compare
+    movl (%edi), %eax
+    cmpl $0x1BADB002, %eax
+    je .found_header
+    
+.next_dword:
+    addl $4, %edi
+    subl $4, %ecx
+    jnz .search_loop
+    
+    # Header not found
+    xorl %eax, %eax
+    jmp .done
+    
+.found_header:
+    movl $1, %eax
+    
+.done:
+    # Store result
+    movl %eax, result_32
+    
+    popa
+    movl result_32, %eax      # Get result
+    ret
+
+# Build multiboot info structure in 32-bit mode
+build_multiboot_info_32:
+    pusha
+    
+    # Set flags = 1 (memory info available)
+    movl $multiboot_info_32, %edi
+    movl $0x1, (%edi)
+    addl $4, %edi
+    
+    # mem_lower and mem_upper - simplified values
+    # These would ideally be queried from BIOS, but we're in 32-bit mode now
+    movl $640, (%edi)              # mem_lower (640KB)
+    addl $4, %edi
+    movl $0x100000, (%edi)         # mem_upper (1MB, simplified)
+    
+    popa
+    ret
+
+# Error handler in 32-bit mode
+multiboot_error_32:
+    movl $multiboot_error_msg_32, %esi
+    call print_string_32
+hang_32:
+    cli
+    hlt
+    jmp hang_32
+
+# Print string in 32-bit mode (simplified - uses VGA text mode directly)
+# ESI should contain the string address
+print_string_32:
+    pusha
+    movl $0xB8000, %edi            # VGA text buffer
+    movb $0x0F, %al                # White on black
+    
+    # Get current cursor position (simplified - just append)
+    # For now, we'll use a simple approach and append to screen
+    # In a real implementation, you'd track cursor position
+    movl vga_cursor_pos, %edi
+    addl $0xB8000, %edi
+    
+.print_loop_32:
+    lodsb                          # Load byte from string
+    testb %al, %al
+    jz .print_done_32
+    cmpb $'\r', %al
+    je .print_loop_32              # Skip carriage return
+    cmpb $'\n', %al
+    je .handle_newline
+    stosw                          # Store char + attribute
+    jmp .print_loop_32
+    
+.handle_newline:
+    # Move to next line (80 chars per line, 2 bytes per char)
+    movl vga_cursor_pos, %edi
+    addl $160, %edi                # Next line (80 * 2)
+    movl %edi, vga_cursor_pos
+    addl $0xB8000, %edi
+    jmp .print_loop_32
+    
+.print_done_32:
+    movl %edi, %eax
+    subl $0xB8000, %eax
+    movl %eax, vga_cursor_pos
+    popa
+    ret
 
 # Print string function
 print_string:
@@ -348,16 +397,17 @@ boot_drive: .byte 0
 sectors_to_read: .byte 0
 current_sector: .byte 0
 result: .word 0
+result_32: .long 0
+vga_cursor_pos: .long 0
 
 # Messages
 stage2_msg: .asciz "Stage 2: Starting bootloader...\r\n"
 a20_msg: .asciz "A20 line enabled.\r\n"
-kernel_loaded_msg: .asciz "Kernel loaded to 0x10000.\r\n"
-multiboot_found_msg: .asciz "Multiboot header found and verified.\r\n"
+kernel_temp_loaded_msg: .asciz "Kernel loaded to temporary buffer.\r\n"
 disk_error_msg: .asciz "Disk read error!\r\n"
 multiboot_error_msg: .asciz "Multiboot header not found!\r\n"
 switch_to_protected_mode_msg: .asciz "Switching to protected mode...\r\n"
-jmp_kernel_msg: .asciz "Jumping to kernel...\r\n"
+multiboot_error_msg_32: .asciz "Multiboot header not found!\r\n"
 
 # GDT
 .align 4
@@ -370,9 +420,16 @@ gdt_descriptor:
     .word gdt_descriptor - gdt - 1
     .long gdt
 
-# Multiboot info structure
+# Multiboot info structure (16-bit mode - not used anymore)
 .align 4
 multiboot_info:
+    .long 0    # flags
+    .long 0    # mem_lower
+    .long 0    # mem_upper
+
+# Multiboot info structure (32-bit mode)
+.align 4
+multiboot_info_32:
     .long 0    # flags
     .long 0    # mem_lower
     .long 0    # mem_upper
