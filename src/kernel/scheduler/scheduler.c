@@ -8,7 +8,7 @@ static volatile task_t* task_list_head = 0;
 static volatile task_t* current_task = 0;
 static volatile uint32_t current_task_ticks = 0;
 
-static scheduler_state_t state = SCHED_STATE_OFF;
+static scheduler_state state = SCHED_STATE_OFF;
 
 void schedule(interrupt_frame_t* frame) {
     if (state == SCHED_STATE_STARTING) {
@@ -83,4 +83,14 @@ void task_init(task_t* task, void (*entry)(void), uint32_t* stack_top) {
         tail->next = task;
         task->next = task_list_head;
     }
+}
+
+void process_init(process_t* p, void (*entry)(void)) {
+    page_directory_t* pd = vmm_create_address_space();
+    p->heap = heap_create(PROCESS_HEAP_START, 16, 1024, pd);
+
+    task_t* t = kmalloc(sizeof(task_t));
+    task_init(t, entry, (uint32_t*)PROCESS_STACK_TOP);
+    
+    p->main_task = t;
 }

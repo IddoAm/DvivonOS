@@ -2,7 +2,7 @@
 #define PMM_H
 
 #include <boot/multiboot.h>
-#include <kernel/memory-defs.h>
+#include <kernel/memory_defs.h>
 
 extern uint32_t _pmm_bitmap_start[];
 

@@ -73,8 +73,8 @@ Source files must use **kebab-case** (lowercase with hyphens) or simple lowercas
 
 ```c
 // ✅ Correct
-heap-allocator.c
-heap-allocator.c
+heap_allocator.c
+heap_allocator.c
 heapallocator.c
 idt.c
 main.c

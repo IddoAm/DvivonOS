@@ -1,4 +1,4 @@
-#include <kernel/memory-defs.h>
+#include <kernel/memory_defs.h>
 #include <kernel/pmm.h>
 #include <lib/stdio.h>
 

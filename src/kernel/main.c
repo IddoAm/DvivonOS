@@ -10,7 +10,7 @@
 
 #include <boot/loader.h>
 
-#include <kernel/heap-allocator.h>
+#include <kernel/heap_allocator.h>
 #include <kernel/pmm.h>
 #include <kernel/scheduler/scheduler.h>
 #include <kernel/time/time.h>
@@ -71,6 +71,8 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
     idt_init();
 
     pmm_init(loader_get_memory_map(), loader_get_memory_map_length());
+	vmm_init();
+	heap_init_kernel(0xC0400000, 16);
 
     uint32_t* allocation = (uint32_t*)kmalloc(sizeof(uint32_t));
     *allocation = 5;
@@ -81,28 +83,18 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
     printf("%d, %x\n", *allocation, allocation);
     printf("freeing second allocation\n");
 
-    kfree((uintptr_t)allocation2);
+    kfree((void*)allocation2);
 
     allocation2 = (uint32_t*)kmalloc(sizeof(uint32_t));
     *allocation2 = 15;
     printf("%d, %x\n", *allocation2, allocation2);
     printf("%d, %x\n", *allocation, allocation);
-    kfree((uintptr_t)allocation);
-    kfree((uintptr_t)allocation2);
+    kfree((void*)allocation);
+    kfree((void*)allocation2);
 
     isr_register_handler(irq_to_vector(1), keyboard_callback);
     pic_clear_mask(1);
 
     clock_init(100); // 100 Hz
-    key_event event;
-
-    while (true) {
-
-        if (keyboard_read(&event)) {
-            if (event.type == KEY_CHAR) {
-                putc(event.c);
-            }
-        }
-        __asm__ volatile("hlt");
-    }
+    
 }

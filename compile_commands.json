@@ -61,9 +61,9 @@
 },
 {
   "directory": "/home/linux/repos/os/build",
-  "command": "i686-elf-gcc  -I/home/linux/repos/os/src/include -ffreestanding -fno-stack-protector -fno-pic -Wall -Wextra -O2 -o CMakeFiles/kernel.elf.dir/src/kernel/memory/heap-allocator.c.o -c /home/linux/repos/os/src/kernel/memory/heap-allocator.c",
-  "file": "/home/linux/repos/os/src/kernel/memory/heap-allocator.c",
-  "output": "CMakeFiles/kernel.elf.dir/src/kernel/memory/heap-allocator.c.o"
+  "command": "i686-elf-gcc  -I/home/linux/repos/os/src/include -ffreestanding -fno-stack-protector -fno-pic -Wall -Wextra -O2 -o CMakeFiles/kernel.elf.dir/src/kernel/memory/heap_allocator.c.o -c /home/linux/repos/os/src/kernel/memory/heap_allocator.c",
+  "file": "/home/linux/repos/os/src/kernel/memory/heap_allocator.c",
+  "output": "CMakeFiles/kernel.elf.dir/src/kernel/memory/heap_allocator.c.o"
 },
 {
   "directory": "/home/linux/repos/os/build",
