@@ -49,7 +49,7 @@ typedef struct page_directory {
 extern uint32_t _page_directory_start[];
 extern uint32_t _page_tables_start[];
 
-static page_directory_t* kernel_pd = NULL;
+static page_directory_t* kernel_pd;
 
 page_directory_t* vmm_get_kernel_pd(void);
 

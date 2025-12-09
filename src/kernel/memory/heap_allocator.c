@@ -92,7 +92,7 @@ static free_block_header_t* split_block(heap_context_t* heap, free_block_header_
 
 /* ---- Page allocation ---- */
 static uintptr_t allocate_new_heap_page(heap_context_t* heap) {
-    uintptr_t page = vmm_alloc_page(heap->page_dir ? heap->page_dir : vmm_get_kernel_pd());
+    uintptr_t page = vmm_alloc_page(heap->page_dir);
     if (!page)
         return 0;
 
@@ -173,7 +173,7 @@ void heap_init_kernel(uintptr_t start, uint32_t initial_pages) {
     kernel_heap.heap_end = start;
     kernel_heap.heap_pages = 0;
     kernel_heap.max_pages = 0; // unlimited
-    kernel_heap.page_dir = NULL; // kernel PD
+    kernel_heap.page_dir = vmm_get_kernel_pd(); // kernel PD
 
     for (uint32_t i = 0; i < initial_pages; i++)
         allocate_new_heap_page(&kernel_heap);

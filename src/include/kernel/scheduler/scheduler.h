@@ -30,7 +30,7 @@ typedef struct process {
 } process_t;
 
 void scheduler_init();
-void task_init(task_t* t, void (*entry)(void), uint32_t* stack_top,  uintptr_t page_directory);
-void process_init(process_t* t);
+void task_init(task_t* t, void (*entry)(void), uint32_t* stack_to);
+void process_init(process_t* t, void (*entry)(void));
 
 #endif
