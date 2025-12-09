@@ -259,7 +259,6 @@ int vmm_alloc_page_at(page_directory_t* pd, uint32_t vaddr, uint32_t flags) {
     return 0;
 }
 
-
 void vmm_free_page(page_directory_t* pd, uintptr_t addr) {
     if (pd != kernel_pd) {
         printf("vmm_free_page: only kernel PD supported for automatic free\n");

@@ -92,8 +92,12 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
     kfree((void*)allocation);
     kfree((void*)allocation2);
 
-    isr_register_handler(irq_to_vector(1), keyboard_callback);
-    pic_clear_mask(1);
+    process_t proc1;
+    process_init(&proc1, shell_loop1);
+    scheduler_init();
+
+    //isr_register_handler(irq_to_vector(1), keyboard_callback);
+   // pic_clear_mask(1);
 
     clock_init(100); // 100 Hz
     
