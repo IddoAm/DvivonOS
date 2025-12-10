@@ -83,7 +83,7 @@ irq_common_stub:
     PUSH_SEGS
     LOAD_KERNEL_SEGS
     push %esp
-    call irq_common_handler
+    call isr_common_handler
     add $4, %esp
     POP_SEGS
     popa

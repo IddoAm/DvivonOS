@@ -1,111 +1,185 @@
-/* Declare constants for the multiboot header. */
-.set ALIGN,    1<<0             /* align loaded modules on page boundaries */
-.set MEMINFO,  1<<1             /* provide memory map */
-.set FLAGS,    ALIGN | MEMINFO  /* this is the Multiboot 'flag' field */
-.set MAGIC,    0x1BADB002       /* 'magic number' lets bootloader find the header */
-.set CHECKSUM, -(MAGIC + FLAGS) /* checksum of above, to prove we are multiboot */
+.code32
 
-/* 
-Declare a multiboot header that marks the program as a kernel. These are magic
-values that are documented in the multiboot standard. The bootloader will
-search for this signature in the first 8 KiB of the kernel file, aligned at a
-32-bit boundary. The signature is in its own section so the header can be
-forced to be within the first 8 KiB of the kernel file.
-*/
-.section .multiboot
+.set ALIGN,    1<<0
+.set MEMINFO,  1<<1
+.set FLAGS,    ALIGN | MEMINFO
+.set MAGIC,    0x1BADB002
+.set CHECKSUM, -(MAGIC + FLAGS)
+
+.section .multiboot.data, "aw"
 .align 4
 .long MAGIC
 .long FLAGS
 .long CHECKSUM
 
-/*
-The multiboot standard does not define the value of the stack pointer register
-(esp) and it is up to the kernel to provide a stack. This allocates room for a
-small stack by creating a symbol at the bottom of it, then allocating 16384
-bytes for it, and finally creating a symbol at the top. The stack grows
-downwards on x86. The stack is in its own section so it can be marked nobits,
-which means the kernel file is smaller because it does not contain an
-uninitialized stack. The stack on x86 must be 16-byte aligned according to the
-System V ABI standard and de-facto extensions. The compiler will assume the
-stack is properly aligned and failure to align the stack will result in
-undefined behavior.
-*/
 .section .bss
 .align 16
 stack_bottom:
-.skip 16384 # 16 KiB
+.skip 16384
 stack_top:
 
-/*
-The linker script specifies _start as the entry point to the kernel and the
-bootloader will jump to this position once the kernel has been loaded. It
-doesn't make sense to return from this function as the bootloader is gone.
-*/
-.section .text
+.align 4
+multiboot_copy:
+.skip 4096
+multiboot_copy_end:
+
+
+.set HIGHER_HALF_BASE, 0xC0000000
+
+.extern _page_directory_start
+.extern _page_tables_start
+
+.extern _kernel_start
+.extern _kernel_end
+
+.section .multiboot.text, "a"
 .global _start
 .type _start, @function
 _start:
-	/*
-	The bootloader has loaded us into 32-bit protected mode on a x86
-	machine. Interrupts are disabled. Paging is disabled. The processor
-	state is as defined in the multiboot standard. The kernel has full
-	control of the CPU. The kernel can only make use of hardware features
-	and any code it provides as part of itself. There's no printf
-	function, unless the kernel provides its own <stdio.h> header and a
-	printf implementation. There are no security restrictions, no
-	safeguards, no debugging mechanisms, only what the kernel provides
-	itself. It has absolute and complete power over the
-	machine.
-	*/
+    # Save multiboot registers (caller of kernel_main expects magic in eax, info in ebx)
+    # Set up a physical stack before enabling paging:
+    movl $stack_top, %ebp
+    subl $HIGHER_HALF_BASE, %ebp    # ebp = stack_top_phys
+    movl %ebp, %esp
 
-	/*
-	To set up a stack, we set the esp register to point to the top of the
-	stack (as it grows downwards on x86 systems). This is necessarily done
-	in assembly as languages such as C cannot function without a stack.
-	*/
-	mov $stack_top, %esp
+	# Push original multiboot info address
+	push %ebx
 
-	/*
-	This is a good place to initialize crucial processor state before the
-	high-level kernel is entered. It's best to minimize the early
-	environment where crucial features are offline. Note that the
-	processor is not fully initialized yet: Features such as floating
-	point instructions and instruction set extensions are not initialized
-	yet. The GDT should be loaded here. Paging should be enabled here.
-	C++ features such as global constructors and exceptions will require
-	runtime support to work as well.
-	*/
+	# Copy the multiboot info (up to 4 KB)
+    movl %ebx, %esi              # ESI = source (physical)
+    movl $multiboot_copy, %edi   # EDI = destination (virtual)
+	subl $HIGHER_HALF_BASE, %edi 
+    movl $1024, %ecx             # 4KB / 4 = 1024 dwords
+    rep movsl                    # copy 4KB of data
+	movl $multiboot_copy, %ebx
 
-	/*
-	Enter the high-level kernel. The ABI requires the stack is 16-byte
-	aligned at the time of the call instruction (which afterwards pushes
-	the return pointer of size 4 bytes). The stack was originally 16-byte
-	aligned above and we've pushed a multiple of 16 bytes to the
-	stack since (pushed 0 bytes so far), so the alignment has thus been
-	preserved and the call is well defined.
-	*/
-	push %ebx   # info struct pointer
-    push %eax   # magic
-	call kernel_main
+	push %ebx
+    push %eax
 
-	/*
-	If the system has nothing more to do, put the computer into an
-	infinite loop. To do that:
-	1) Disable interrupts with cli (clear interrupt enable in eflags).
-	   They are already disabled by the bootloader, so this is not needed.
-	   Mind that you might later enable interrupts and return from
-	   kernel_main (which is sort of nonsensical to do).
-	2) Wait for the next interrupt to arrive with hlt (halt instruction).
-	   Since they are disabled, this will lock up the computer.
-	3) Jump to the hlt instruction if it ever wakes up due to a
-	   non-maskable interrupt occurring or due to system management mode.
-	*/
-	cli
-1:	hlt
-	jmp 1b
 
-/*
-Set the size of the _start symbol to the current location '.' minus its start.
-This is useful when debugging or when you implement call tracing.
-*/
+    # Compute physical addresses at runtime:
+    movl $_page_tables_start, %ebx
+    subl $HIGHER_HALF_BASE, %ebx    # ebx = page_tables_phys
+
+    movl $_page_directory_start, %edx
+    subl $HIGHER_HALF_BASE, %edx    # edx = page_directory_phys
+
+    # IMPORTANT: Zero out the entire page directory first!
+    movl %edx, %edi                  # edi = page_directory_phys
+    xorl %eax, %eax                  # zero
+    movl $1024, %ecx                 # 1024 entries (4096 bytes / 4)
+    rep stosl                        # zero all PDEs
+
+    # Also zero out all page tables
+    movl %ebx, %edi                  # edi = page_tables_phys
+    xorl %eax, %eax                  # zero
+    movl $(256 * 1024), %ecx         # 256 tables * 1024 entries
+    rep stosl                        # zero all PTEs
+
+    # Reload registers after using them for zeroing
+    movl $_page_tables_start, %ebx
+    subl $HIGHER_HALF_BASE, %ebx    # ebx = page_tables_phys
+
+    movl $_page_directory_start, %edx
+    subl $HIGHER_HALF_BASE, %edx    # edx = page_directory_phys
+
+    movl $_kernel_start, %esi
+    # esi is virtual, keep it as-is for comparison
+
+    movl $_kernel_end, %edi
+    subl $HIGHER_HALF_BASE, %edi    # edi = kernel_end_phys
+
+    # Prepare pte pointer and loop variables for FIRST page table only
+    movl %ebx, %ebp          # ebp = pte_ptr (page_tables_phys)
+    xorl %eax, %eax          # eax = current phys addr (starts 0)
+    movl $1024, %ecx         # number of pages in first table
+
+mapping_loop:
+    # Check if current page is in kernel range
+    cmpl %esi, %eax
+    jb skip_page
+    cmpl %edi, %eax
+    jae skip_page
+
+    # Map page: write PTE = phys | 3
+    pushl %edx               # Save edx (page_directory_phys)
+    movl %eax, %edx
+    orl $0x003, %edx         # Present + RW
+    movl %edx, (%ebp)
+    popl %edx                # Restore edx
+
+skip_page:
+    addl $4096, %eax         # Next physical page
+    addl $4, %ebp            # Next PTE
+    loop mapping_loop
+
+end_mapping:
+    # edx still contains page_directory_phys (we preserved it in the loop)
+
+    # Set VGA PTE at last entry of first page table
+    movl %ebx, %ecx
+    addl $((1023) * 4), %ecx
+    movl $0x000B8000, %eax
+    orl $0x003, %eax
+    movl %eax, (%ecx)
+
+    # Identity-map first 4MB: PDE0 = page_tables_phys | 3
+    movl %ebx, %ecx
+    orl $0x003, %ecx
+    movl %ecx, (%edx)        # Write to page_directory[0]
+
+    # Map kernel PDEs (768..1023 -> 256 PDEs)
+    movl %edx, %ebp          # ebp = page_directory_phys
+    addl $(768*4), %ebp      # ebp points at PDE[768]
+    movl %ebx, %ecx          # ecx = page_tables_phys (first kernel table)
+    movl $256, %esi          # esi = count
+
+map_kernel_pdes:
+    movl %ecx, %eax          # move PT address into eax
+    orl  $0x003, %eax        # add flags (Present + RW)
+    movl %eax, (%ebp)        # store to PDE
+    addl $4096, %ecx         # next page table
+    addl $4, %ebp            # next PDE
+    decl %esi
+    jnz map_kernel_pdes
+
+    # Load CR3 and enable paging
+    movl %edx, %eax          # page_directory_phys -> eax
+    movl %eax, %cr3
+    movl %cr0, %eax
+    orl $0x80000000, %eax    # set PG bit
+    movl %eax, %cr0
+
+    # Jump to higher-half entry (it's already a virtual address!)
+    movl $_higher_half_entry, %eax
+    #addl $HIGHER_HALF_BASE, %eax
+    jmp *%eax
+
 .size _start, . - _start
+.section .text
+_higher_half_entry:
+	pop %eax   # magic
+    pop %ebx   # restore mb info virtual
+	pop %ecx   # restore mb info physical
+
+
+
+    movl $stack_top, %esp
+
+    # Unmap the identity mapping (PDE[0]) now that we're in higher half
+    movl $_page_directory_start, %edx
+    movl $0, (%edx)          # Clear PDE[0]
+    
+    # Flush TLB by reloading CR3
+    movl %cr3, %edx
+    movl %edx, %cr3
+    # Restore multiboot args into registers and call kernel_main:
+	push %ecx
+    push %ebx
+    push %eax
+    call kernel_main
+
+.hang:
+    cli
+1:  hlt
+    jmp 1b

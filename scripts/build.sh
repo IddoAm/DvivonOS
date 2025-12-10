@@ -12,13 +12,7 @@ fi
 
 BUILD_DIR=build
 
-# If CMake cache references missing source files, wipe build dir.
-# This checks for any source file reference within the CMake cache
-# that doesn't exist in the current source tree.
-# if [ -d "$BUILD_DIR" ] && grep -q "\.c" "$BUILD_DIR/CMakeFiles"/* 2>/dev/null; then
-# 	echo "[INFO] Stale source detected, wiping build dir..."
-# 	rm -rf "$BUILD_DIR"
-# fi
+
 
 # Create build folder if missing
 mkdir -p "$BUILD_DIR"
@@ -29,5 +23,5 @@ if [ ! -f Makefile ]; then
 	cmake ..
 fi
 
-# Build kernel.elf only
-make kernel.elf
+# Build kernel.elf only with max speed
+make -j$(nproc) kernel.elf

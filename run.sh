@@ -8,6 +8,7 @@ source scripts/set_env.sh
 # Script configuration
 BUILD_DIR=build
 DEBUG=0
+GDB=0
 
 # Parse flags (only -d supported)
 for arg in "$@"; do
