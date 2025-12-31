@@ -291,7 +291,7 @@ protected_mode_start:
     movl $multiboot_info_32, %ebx  # Multiboot info structure
     # Jump to kernel entry point at 0x200000
     # The linker sets ENTRY(_start) which should be at KERNEL_LOAD_ADDR
-    movl $KERNEL_LOAD_ADDR + 0xc, %edx
+    movl $KERNEL_LOAD_ADDR + 0xd, %edx
     jmp *%edx
 
 # Copy kernel from temporary buffer to final location (0x200000)

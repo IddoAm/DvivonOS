@@ -86,7 +86,7 @@ add_custom_command(
 add_custom_target(bootloader ALL DEPENDS ${BOOT_IMG})
 
 # Kernel size configuration (must match KERNEL_SECTORS in stage2.s)
-set(KERNEL_MAX_SECTORS 32 CACHE STRING "Maximum number of sectors for kernel")
+set(KERNEL_MAX_SECTORS 64 CACHE STRING "Maximum number of sectors for kernel")
 set(KERNEL_MAX_SIZE ${KERNEL_MAX_SECTORS} CACHE STRING "Maximum kernel size in bytes")
 math(EXPR KERNEL_MAX_SIZE "${KERNEL_MAX_SECTORS} * 512")
 
