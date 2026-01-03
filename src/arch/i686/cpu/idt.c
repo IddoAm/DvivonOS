@@ -8,36 +8,9 @@
 #include <drivers/vga.h>
 #include <lib/stdio.h>
 #include <lib/string.h>
-/*
-void pic_remap(void) {
-    unsigned char a1, a2;
 
-    // Save masks
-    a1 = inb(PIC_MASTER_DATA);
-    a2 = inb(PIC_SLAVE_DATA);
-
-    // Start initialization
-    outb(PIC_MASTER_CMD, 0x11);
-    outb(PIC_SLAVE_CMD, 0x11);
-
-    // Set vector offsets
-    outb(PIC_MASTER_DATA, 0x20); // Master PIC → 0x20–0x27
-    outb(PIC_SLAVE_DATA, 0x28); // Slave PIC  → 0x28–0x2F
-
-    // Tell Master about Slave at IRQ2 (0000 0100)
-    outb(PIC_MASTER_DATA, 0x04);
-    // Tell Slave its cascade identity (0000 0010)
-    outb(PIC_SLAVE_DATA, 0x02);
-
-    // Set 8086/88 mode
-    outb(PIC_MASTER_DATA, 0x01);
-    outb(PIC_SLAVE_DATA, 0x01);
-
-    // Restore saved masks
-    outb(PIC_MASTER_DATA, a1);
-    outb(PIC_SLAVE_DATA, a2);
-}
-    */
+#define IDT_INTERRUPT_GATE      0x8E  // Present, DPL=0, 32-bit interrupt gate
+#define IDT_TRAP_GATE_USER      0xEF  // Present, DPL=3, 32-bit trap gate
 
 typedef struct {
     uint16_t isr_low; // The lower 16 bits of the ISR's address
@@ -102,6 +75,9 @@ void idt_init(void) {
         idt_set_gate(EXCEPTION_COUNT + i, (uint32_t)irqs[i], KERNEL_CS_SELECTOR,
                      IDT_INTERRUPT_GATE);
     }
+
+    extern isr_t isr_syscall;
+    idt_set_gate(0x67, (uint32_t)&isr_syscall, KERNEL_CS_SELECTOR, IDT_TRAP_GATE_USER);
 
     idt_flush(&_idtr);
     __asm__ volatile("sti");

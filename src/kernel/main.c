@@ -17,35 +17,25 @@
 #include <kernel/vmm.h>
 
 #include <arch/i686/pic.h>
+#include <kernel/syscall.h>
 
-void shell_loop2() {
-    printf("tests");
+void user_space_loop() {
     while (true) {
 
-        printf("#");
-        for (volatile int i = 0; i < 1000000; i++)
-            ;
+        printf("Hello from User Space");
+        for (volatile int i = 0; i < 10000000; i++);
     }
 }
 
-void shell_loop1() {
-    printf("tests");
-    while (true) {
-
-        printf("-");
-        for (volatile int i = 0; i < 1000000; i++)
-            ;
-    }
-}
-
-void shell_loop3() {
-    printf("tests");
-    while (true) {
-
-        printf("+");
-        for (volatile int i = 0; i < 1000000; i++)
-            ;
-    }
+static int do_syscall_write(int fd, const char* buf, size_t len) {
+    uint32_t ret;
+    __asm__ volatile(
+        "int $0x67"
+        : "=a"(ret)
+        : "a"((uint32_t)SYSCALL_WRITE), "b"((uint32_t)fd), "c"((uint32_t)buf), "d"((uint32_t)len)
+        : "memory"
+    );
+    return (int)ret;
 }
 
 void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
@@ -74,31 +64,13 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
 	vmm_init();
 	heap_init_kernel(0xC0400000, 16);
 
-    uint32_t* allocation = (uint32_t*)kmalloc(sizeof(uint32_t));
-    *allocation = 5;
-    printf("%d, %x\n", *allocation, allocation);
-    uint32_t* allocation2 = (uint32_t*)kmalloc(sizeof(uint32_t));
-    *allocation2 = 10;
-    printf("%d, %x\n", *allocation2, allocation2);
-    printf("%d, %x\n", *allocation, allocation);
-    printf("freeing second allocation\n");
+    printf("syscall: running write test via int 0x80\n");
+    const char test_msg[] = "syscall test: hello from syscall_write\n";
+    int r = do_syscall_write(1, test_msg, sizeof(test_msg) - 1);
+    printf("syscall returned %d\n", r);
 
-    kfree((void*)allocation2);
-
-    allocation2 = (uint32_t*)kmalloc(sizeof(uint32_t));
-    *allocation2 = 15;
-    printf("%d, %x\n", *allocation2, allocation2);
-    printf("%d, %x\n", *allocation, allocation);
-    kfree((void*)allocation);
-    kfree((void*)allocation2);
-
-    process_t proc1;
-    process_init(&proc1, shell_loop1);
-    scheduler_init();
-
-    //isr_register_handler(irq_to_vector(1), keyboard_callback);
-   // pic_clear_mask(1);
-
+    // Start timer before starting scheduler so IRQ0 fires
     clock_init(100); // 100 Hz
-    
-}
+   // scheduler_start();
+     
+ }

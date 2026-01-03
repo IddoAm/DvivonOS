@@ -70,7 +70,7 @@ static void gdt_set_entry(int i, uint32_t base, uint32_t limit, uint8_t access,
 
 // Extern assembly stub
 extern void gdt_load(struct gdt_ptr* gp);
-extern void tts_load(uint16_t sel);
+extern void tss_load(uint16_t sel);
 
 void gdt_init(void) {
     // pointer tells CPU size-1 and address
@@ -111,5 +111,5 @@ void gdt_init(void) {
     /* Load GDT and reload segments (assembly stub) */
     gdt_load(&gp);
     /* load TSS selector (assembly helper in lgdt.s) */
-    tts_load(GDT_TSS_SEL);
+    tss_load(GDT_TSS_SEL);
 }
