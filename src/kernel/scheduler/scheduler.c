@@ -37,7 +37,7 @@ void schedule(interrupt_frame_t* frame) {
             current_process = next_proc;
             current_task = current_process->task_list_head;
 
-            vmm_switch_address_space(current_process->heap->pd);
+            vmm_switch_address_space(current_process->heap->page_dir);
         }
 
         memcpy(frame, current_task->context, sizeof(interrupt_frame_t));
@@ -79,7 +79,7 @@ void scheduler_start() {
     current_task = current_process->task_list_head;
     state = SCHED_STATE_READY;
 
-    vmm_switch_address_space(current_process->heap->pd);
+    vmm_switch_address_space(current_process->heap->page_dir);
     scheduler_init();
 }
 

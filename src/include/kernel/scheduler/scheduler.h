@@ -35,7 +35,7 @@ typedef struct process {
 
     // list head is main task
     task_t* task_list_head;
-    process_t* next;
+    struct process* next;
 } process_t;
 
 void scheduler_init();
