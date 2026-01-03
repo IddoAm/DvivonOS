@@ -1,6 +1,7 @@
 #include <kernel/scheduler/scheduler.h>
 #include <lib/stdio.h>
 #include <lib/string.h>
+#include <arch/i686/gdt.h>
 
 #define TASK_MAX_TICKS 10
 
@@ -89,9 +90,9 @@ void task_init(task_t* task, void (*entry)(void), uint32_t* stack_top) {
     memset(frame, 0, sizeof(*frame));
 
     frame->eip = (uint32_t)entry;
-    frame->cs = 0x08;
+    frame->cs = GDT_USER_CODE_SEL;
     frame->eflags = 0x202;
-    frame->ds = frame->es = frame->fs = frame->gs = 0x10;
+    frame->ss = frame->ds = frame->es = frame->fs = frame->gs = GDT_USER_DATA_SEL;
 
     frame->eax = frame->ecx = frame->edx = frame->ebx = 0;
     frame->esp = (uint32_t)stack_top;

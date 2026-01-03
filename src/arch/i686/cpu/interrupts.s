@@ -90,6 +90,22 @@ irq_common_stub:
     add $8, %esp
     iret
 
+    .globl isr_syscall
+isr_syscall:
+    pushl $0                   /* dummy err_code */
+    pushl $0x67                /* int_no */
+    pusha
+    PUSH_SEGS
+    LOAD_KERNEL_SEGS
+    push %esp
+    call syscall_handler
+    add $4, %esp
+    POP_SEGS
+    popa
+    add $8, %esp               /* remove err_code and int_no */
+    iret
+
+
 /* ------------- ISR (CPU exceptions 0..31) ----------------------------- */
 /* Exceptions that PUSH an error code: 8, 10–14, 17 (and 30 on newer CPUs).
    We’ll handle the classic set: 8, 10, 11, 12, 13, 14, 17. Others get a dummy 0. */
@@ -169,3 +185,6 @@ irq\n:
     IRQ 13, 0x2D
     IRQ 14, 0x2E
     IRQ 15, 0x2F
+
+
+

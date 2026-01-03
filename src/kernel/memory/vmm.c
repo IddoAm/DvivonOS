@@ -343,10 +343,7 @@ page_directory_t* vmm_create_address_space(void) {
     if (kernel_pde_start > 1024) kernel_pde_start = 768;
 
     for (int i = (int)kernel_pde_start; i < 1024; i++) {
-        uint32_t entry = kernel_pd->virt[i];
-        if (entry & PAGE_PRESENT) {
-            ((uint32_t*)new_pd_virt)[i] = entry;
-        }
+        ((uint32_t*)new_pd_virt)[i] = kernel_pd->virt[i];
     }
 
     uintptr_t meta_virt = vmm_alloc_page(kernel_pd);
