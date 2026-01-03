@@ -9,6 +9,12 @@ gdt_load:
     /* Far jump to reload CS with selector 0x08 (GDT index 1, RPL 0) */
     ljmp    $0x08, $flush_cs
 
+
+tts_load:
+    /* void tss_load(uint16_t sel); */
+    mov     4(%esp), %ax      /* ax = sel */
+    ltr     %ax                 /* load TR with sel */
+
 flush_cs:
     /* Load data segment registers with selector 0x10 (GDT index 2) */
     mov     $0x10, %ax
