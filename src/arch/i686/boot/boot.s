@@ -36,7 +36,6 @@ multiboot_copy_end:
 .global _start
 .type _start, @function
 _start:
-hlt
     # Save multiboot registers (caller of kernel_main expects magic in eax, info in ebx)
     # Set up a physical stack before enabling paging:
     movl $stack_top, %ebp
