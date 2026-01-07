@@ -14,9 +14,6 @@
 #define IRQ_COUNT 16
 #define IRQ_SLAVE_THRESHOLD 40 // EXCEPTION_COUNT + 8
 
-// GDT selector constants
-#define KERNEL_CS_SELECTOR 0x08
-
 // IDT gate flags
 #define IDT_INTERRUPT_GATE 0x8E // Present, Ring 0, 32-bit interrupt gate
 
@@ -30,6 +27,11 @@
 
 // IRQ to vector conversion
 #define IRQ_BASE_VECTOR 0x20
+
+#define IDT_INTERRUPT_GATE      0x8E  // Present, DPL=0, 32-bit interrupt gate
+#define IDT_TRAP_GATE_USER      0xEF  // Present, DPL=3, 32-bit trap gate
+
+#define SYSCALL_INT 0x67
 
 extern uint32_t isr_table_start[];
 extern uint32_t isr_table_end[];
