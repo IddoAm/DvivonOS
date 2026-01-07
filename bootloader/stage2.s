@@ -16,7 +16,7 @@
 .equ KERNEL_TEMP_BUFFER, 0x10000   # Temporary buffer for loading
 .equ MMAP_BUFFER, 0x3000           # Buffer for E820 Memory Map
 .equ KERNEL_START_SECTOR, 4        
-.equ KERNEL_SECTORS, 32           
+.equ KERNEL_SECTORS, 64           
 
 # GDT constants
 .equ GDT_NULL, 0x00
@@ -183,7 +183,6 @@ load_kernel_temp:
     pusha
     
     # Set up segment for 16-bit addressing
-    # ES:0x10000 = 0x1000:0x0000 (segment 0x1000, offset 0x0000)
     movw $0x1000, %ax
     movw %ax, %es
     
@@ -212,26 +211,48 @@ read_sectors:
     
     movb %al, sectors_to_read
     movb %cl, current_sector
-    
+
+    # Initialize CH/DH tracking for floppy CHS wrapping
+    movb $0x00, current_cyl
+    movb $0x00, current_head
+
 .read_loop:
     # Set up disk read
     movb $0x02, %ah          # Read sectors
     movb $0x01, %al          # Read 1 sector at a time
     movb current_sector, %cl # Starting sector
-    movb $0x00, %ch          # Cylinder 0
-    movb $0x00, %dh          # Head 0
+    movb current_cyl, %ch    # Cylinder
+    movb current_head, %dh   # Head
     movb boot_drive, %dl     # Drive
-    
+
     # Perform read
     int $0x13
     jc disk_error
-    
-    # Move to next sector
+
+    # Move to next sector in buffer
     addw $0x200, %bx         # Move buffer pointer 512 bytes
+
+    # Increment sector number and handle CHS wrap for floppy (18 sectors/track)
     incb current_sector      # Next sector
+    movb current_sector, %al
+    cmpb $18, %al
+    jle .no_sector_wrap
+
+    # Sector overflow: wrap to 1 and advance head
+    movb $1, current_sector
+    incb current_head
+    movb current_head, %al
+    cmpb $1, %al             # Floppy has 2 heads: 0 and 1
+    jle .no_sector_wrap
+
+    # Head overflow: wrap head to 0 and advance cylinder
+    movb $0, current_head
+    incb current_cyl
+
+.no_sector_wrap:
     decb sectors_to_read     # Decrement counter
     jnz .read_loop
-    
+
     popa
     ret
 
@@ -498,6 +519,8 @@ hang:
 boot_drive: .byte 0
 sectors_to_read: .byte 0
 current_sector: .byte 0
+current_head: .byte 0
+current_cyl: .byte 0
 result: .word 0
 result_32: .long 0
 vga_cursor_pos: .long 0
