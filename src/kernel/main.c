@@ -64,7 +64,9 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
 	vmm_init();
 	heap_init_kernel(0xC0400000, 16);
 
-    printf("syscall: running write test via int 0x80\n");
+    syscall_init();
+
+    printf("syscall: running write test via int 0x67\n");
     const char test_msg[] = "syscall test: hello from syscall_write\n";
     int r = do_syscall_write(1, test_msg, sizeof(test_msg) - 1);
     printf("syscall returned %d\n", r);
