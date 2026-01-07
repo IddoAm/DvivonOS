@@ -14,7 +14,7 @@
 # Memory layout
 .equ KERNEL_LOAD_ADDR, 0x200000    # 2MB - where kernel will be loaded
 .equ KERNEL_TEMP_BUFFER, 0x10000   # Temporary buffer for loading
-.equ MMAP_BUFFER, 0x3000           # Buffer for E820 Memory Map
+.equ MMAP_BUFFER, mmap_buffer      # Buffer for E820 Memory Map (placed after multiboot_info_32)
 .equ KERNEL_START_SECTOR, 4        
 .equ KERNEL_SECTORS, 64           
 
@@ -564,3 +564,8 @@ multiboot_info_32:
     .long 0    # syms[3]
     .long 0    # mmap_length
     .long 0    # mmap_addr
+
+# Memory map buffer placed after `multiboot_info_32` for easy access
+.align 4
+mmap_buffer:
+    .zero 4096
