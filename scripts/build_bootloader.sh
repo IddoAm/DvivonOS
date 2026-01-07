@@ -36,6 +36,8 @@ echo "[INFO] Starting QEMU..."
 # Run QEMU with the bootloader
 exec qemu-system-i386 \
     -drive file="$BOOT_IMG",format=raw,if=floppy \
+    # -no-reboot -no-shutdown \
+    # -S -s \
     
 
 

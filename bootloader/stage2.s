@@ -235,7 +235,7 @@ read_sectors:
     # Increment sector number and handle CHS wrap for floppy (18 sectors/track)
     incb current_sector      # Next sector
     movb current_sector, %al
-    cmpb $18, %al
+    cmpb $36, %al
     jle .no_sector_wrap
 
     # Sector overflow: wrap to 1 and advance head
@@ -535,6 +535,7 @@ disk_error_msg: .asciz "Disk read error!\r\n"
 multiboot_error_msg: .asciz "Multiboot header not found!\r\n"
 switch_to_protected_mode_msg: .asciz "Switching to protected mode...\r\n"
 multiboot_error_msg_32: .asciz "Multiboot header not found!\r\n"
+test_msg: .asciz "A"
 
 # GDT
 .align 4
