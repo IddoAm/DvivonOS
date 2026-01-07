@@ -17,10 +17,14 @@ if [[ "${1:-}" == "--complete" ]]; then
     RUN_TARGET="run_complete"
     BOOT_IMG+="complete.img"
     echo "[INFO] Building complete bootloader with kernel..."
+    shift
 else
     BOOT_IMG+="boot.img"
     echo "[INFO] Building bootloader only..."
 fi
+
+# Remaining args are forwarded to QEMU
+QEMU_ARGS=("$@")
 
 cmake -S "$ROOT_DIR" -B "$BUILD_DIR"
 cmake --build "$BUILD_DIR" --target "$BUILD_TARGET" -j
@@ -33,11 +37,10 @@ fi
 echo "[INFO] Build completed successfully!"
 echo "[INFO] Starting QEMU..."
 
-# Run QEMU with the bootloader
+# Run QEMU with the bootloader, forwarding any extra args
 exec qemu-system-i386 \
     -drive file="$BOOT_IMG",format=raw,if=floppy \
-    # -no-reboot -no-shutdown \
-    # -S -s \
-    
+    "${QEMU_ARGS[@]}"
+
 
 

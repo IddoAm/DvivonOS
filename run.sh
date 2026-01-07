@@ -4,41 +4,84 @@ set -euo pipefail
 # set env
 source scripts/set_env.sh
 
-
-# Script configuration
+# Default behavior: build kernel with custom bootloader unless --grub is specified
 BUILD_DIR=build
-DEBUG=0
+USE_GRUB=0
+CLEAN=0
 GDB=0
+NO_CLOSE=0
 
-# Parse flags (only -d supported)
-for arg in "$@"; do
-  case "$arg" in
-    -d) DEBUG=1 ;;
+# Parse flags
+while (( "$#" )); do
+  case "$1" in
+    --gdb|-g)
+      GDB=1
+      shift
+      ;;
+    --no-close|-n)
+      NO_CLOSE=1
+      shift
+      ;;
+    --grub)
+      USE_GRUB=1
+      shift
+      ;;
+    --clean|-c)
+      CLEAN=1
+      shift
+      ;;
     -h|--help)
       cat <<EOF
-Usage: $(basename "$0") [-d]    # -d run QEMU in debug mode
+Usage: $(basename "$0") [--grub] [--gdb|-g] [--no-close|-n] [--clean|-c]
+  --grub        Use GRUB ISO as bootloader (default is custom bootloader)
+  --gdb, -g     Start QEMU with GDB stub (-S -s)
+  --no-close,-n Prevent QEMU from closing/rebooting (-no-reboot -no-shutdown)
+  --clean, -c   Clean the build directory before building
 EOF
       exit 0
       ;;
-    *) ;; # ignore other args
+    *)
+      shift
+      ;;
   esac
 done
 
 # Determine script directory (project-root/scripts)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/scripts"
 
-# Ensure the helper scripts exist
-if [ ! -x "$SCRIPT_DIR/build.sh" ] || [ ! -x "$SCRIPT_DIR/pack.sh" ] || [ ! -x "$SCRIPT_DIR/run_qemu.sh" ]; then
+# Ensure required helper scripts exist
+if [ ! -x "$SCRIPT_DIR/build_grub.sh" ] || [ ! -x "$SCRIPT_DIR/pack.sh" ] || [ ! -x "$SCRIPT_DIR/run_qemu.sh" ] || [ ! -x "$SCRIPT_DIR/build_bootloader.sh" ]; then
   echo "[ERROR] Required scripts missing or not executable in: $SCRIPT_DIR" >&2
   exit 1
 fi
 
-# Run build, pack, and QEMU scripts
-"$SCRIPT_DIR/build.sh"
-"$SCRIPT_DIR/pack.sh"
+if [ "$CLEAN" -eq 1 ]; then
+  echo "[INFO] Cleaning build directory..."
+  "$SCRIPT_DIR/clean.sh"
+fi
 
-if [ "$DEBUG" -eq 1 ]; then
-  "$SCRIPT_DIR/run_qemu.sh" -d
+# Assemble QEMU args to forward
+QEMU_ARGS=()
+if [ "$GDB" -eq 1 ]; then
+  QEMU_ARGS+=( -S -s )
+  echo "gdb -x scripts/debug_memory.gdb"
+fi
+if [ "$NO_CLOSE" -eq 1 ]; then
+  QEMU_ARGS+=( -no-reboot -no-shutdown )
+fi
+
+if [ "$USE_GRUB" -eq 1 ]; then
+  echo "[INFO] Building kernel and creating GRUB ISO..."
+  "$SCRIPT_DIR/build_grub.sh"
+  "$SCRIPT_DIR/pack.sh"
+  echo "[INFO] Running QEMU (GRUB ISO)..."
+  "$SCRIPT_DIR/run_qemu.sh" "${QEMU_ARGS[@]}"
 else
-  "$SCRIPT_DIR/run_qemu.sh"
+  echo "[INFO] Building kernel with custom bootloader..."
+  # build_bootloader.sh handles building the padded kernel and complete image
+  if [ ${#QEMU_ARGS[@]} -gt 0 ]; then
+    "$SCRIPT_DIR/build_bootloader.sh" --complete "${QEMU_ARGS[@]}"
+  else
+    "$SCRIPT_DIR/build_bootloader.sh" --complete
+  fi
 fi
