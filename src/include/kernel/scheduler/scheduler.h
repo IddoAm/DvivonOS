@@ -21,28 +21,19 @@ typedef enum {
 static uint32_t next_tid = 1;
 static uint32_t next_pid = 1;
 
-typedef struct task {
-    uint32_t tid;
-    interrupt_frame_t* context;
-    void (*entry)(void);
-    struct task* next;
-    uint8_t state;
-} task_t;
-
 typedef struct process {
-    uint32_t pid;   
+    const uint32_t pid;
+    
+    interrupt_frame_t* context; 
     heap_context_t* heap;
 
-    // list head is main task
-    task_t* task_list_head;
     struct process* next;
 } process_t;
 
 void scheduler_init();
-void task_init(task_t* t, void (*entry)(void), uint32_t* stack_to);
 void process_init(process_t* t, void (*entry)(void));
+void process_exit(process_t* proc, interrupt_frame_t* frame);
 
-task_t* get_current_task(void);
 process_t* get_current_process(void);
 
 #endif

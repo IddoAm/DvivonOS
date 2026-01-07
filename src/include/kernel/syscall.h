@@ -11,6 +11,9 @@
 
 #define SYSCALL_COUNT   3
 
+#define SYSCALL_SUCCESS  0
+#define SYSCALL_ERROR   -1
+
 void syscall_init();
 
 #endif
