@@ -83,7 +83,7 @@ void idt_init(void) {
 }
 
 void isr_common_handler(interrupt_frame_t* frame) {
-    printf("Received interrupt: %d\n", frame->int_no);
+    
     // Check if there are handlers registered for this interrupt
     for (int i = 0; i < MAX_HANDELERS_PER_INTURRUPT; i++) {
         if ((interrupt_handler_t)isr_table_start[frame->int_no * MAX_HANDELERS_PER_INTURRUPT + i]) {
@@ -103,7 +103,6 @@ void isr_common_handler(interrupt_frame_t* frame) {
 }
 
 void isr_register_handler(uint8_t num, interrupt_handler_t handler) {
-    printf("int %d\n", num);
     isr_table_start[num * MAX_HANDELERS_PER_INTURRUPT] = (uint32_t)handler;
 }
 void isr_unregister_handler(uint8_t num, interrupt_handler_t handler) {
