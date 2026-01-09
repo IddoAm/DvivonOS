@@ -18,12 +18,9 @@ typedef enum {
     SCHED_STATE_RUNNING = 3,
 } scheduler_state;
 
-static uint32_t next_tid = 1;
-static uint32_t next_pid = 1;
-
 typedef struct process {
     const uint32_t pid;
-    
+
     interrupt_frame_t* context; 
     heap_context_t* heap;
 

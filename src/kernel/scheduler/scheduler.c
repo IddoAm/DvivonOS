@@ -5,8 +5,10 @@
 
 #define PROCESS_MAX_TICKS 10
 
-static volatile process_t* current_process = NULL;
-static volatile process_t* process_list = NULL;
+static uint32_t next_pid = 1;
+
+static process_t* current_process = NULL;
+static process_t* process_list = NULL;
 static volatile uint32_t current_process_ticks = 0;
 static scheduler_state state = SCHED_STATE_OFF;
 
@@ -150,7 +152,7 @@ void process_exit(process_t* proc, interrupt_frame_t* frame) {
     // Free resources
     // IMPORTANT TODO:
     // AFTER VMM REFACTOR DESTROY PROCESS ADDRESS SPACE HERE
-    
+
     kfree(proc);
     
     // If current process is exiting, force immediate reschedule
