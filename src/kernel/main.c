@@ -27,6 +27,18 @@ void user_space_loop() {
     }
 }
 
+void dump_page_directory() {
+    uint32_t* pd = (uint32_t*)0xFFFFF000;
+    
+    printf("--- Page Directory Dump ---\n");
+    for (int i = 0; i < 768; i++) {
+        // Only print entries that are "Present" (bit 0 is set)
+        if (pd[i] & 1) {
+            printf("PDE [%d]: 0x%x + +", i, pd[i]);
+        }
+    }
+}
+
 static int do_syscall_write(int fd, const char* buf, size_t len) {
     uint32_t ret;
     __asm__ volatile(
@@ -69,6 +81,8 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
     printf("Allocated value: %d at %x\n", *value, value);
     kfree(value);
     printf("Freed value\n");
+
+    dump_page_directory();
 
     // Start timer before starting scheduler so IRQ0 fires
     clock_init(100); // 100 Hz
