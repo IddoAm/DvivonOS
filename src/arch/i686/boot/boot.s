@@ -64,7 +64,7 @@ _start:
     movl $_page_directory_start, %edx
     subl $HIGHER_HALF_BASE, %edx    # edx = page_directory_phys
 
-    # IMPORTANT: Zero out the entire page directory first!
+    # Zero out the entire page directory first
     movl %edx, %edi                  # edi = page_directory_phys
     xorl %eax, %eax                  # zero
     movl $1024, %ecx                 # 1024 entries (4096 bytes / 4)
@@ -73,7 +73,7 @@ _start:
     # Also zero out all page tables
     movl %ebx, %edi                  # edi = page_tables_phys
     xorl %eax, %eax                  # zero
-    movl $(256 * 1024), %ecx         # 256 tables * 1024 entries
+    movl $1024, %ecx                 # 1024 entries
     rep stosl                        # zero all PTEs
 
     # Reload registers after using them for zeroing
@@ -84,12 +84,12 @@ _start:
     subl $HIGHER_HALF_BASE, %edx    # edx = page_directory_phys
 
     movl $_kernel_start, %esi
-    # esi is virtual, keep it as-is for comparison
+    # _kernel_start is already physical
 
     movl $_kernel_end, %edi
     subl $HIGHER_HALF_BASE, %edi    # edi = kernel_end_phys
 
-    # Prepare pte pointer and loop variables for FIRST page table only
+    # Prepare pte pointer and loop variables
     movl %ebx, %ebp          # ebp = pte_ptr (page_tables_phys)
     xorl %eax, %eax          # eax = current phys addr (starts 0)
     movl $1024, %ecx         # number of pages in first table
@@ -114,11 +114,11 @@ skip_page:
     loop mapping_loop
 
 end_mapping:
-    # edx still contains page_directory_phys (we preserved it in the loop)
+    # edx still contains page_directory_phys
 
-    # Set VGA PTE at last entry of first page table
+    # Map VGA to 0xC00B8000 (PTE[184])
     movl %ebx, %ecx
-    addl $((1023) * 4), %ecx
+    addl $(184 * 4), %ecx      # PTE[184]
     movl $0x000B8000, %eax
     orl $0x003, %eax
     movl %eax, (%ecx)
@@ -128,21 +128,21 @@ end_mapping:
     orl $0x003, %ecx
     movl %ecx, (%edx)        # Write to page_directory[0]
 
-    # Map kernel PDEs (768..1023 -> 256 PDEs)
-    movl %edx, %ebp          # ebp = page_directory_phys
-    addl $(768*4), %ebp      # ebp points at PDE[768]
+map_kernel_pde:
+    movl %edx, %ebp          # ebp = page_directory_phys    
+    addl $(768*4), %ebp      # ebp points at PDE[768] 
     movl %ebx, %ecx          # ecx = page_tables_phys (first kernel table)
-    movl $256, %esi          # esi = count
-
-map_kernel_pdes:
     movl %ecx, %eax          # move PT address into eax
     orl  $0x003, %eax        # add flags (Present + RW)
     movl %eax, (%ebp)        # store to PDE
-    addl $4096, %ecx         # next page table
-    addl $4, %ebp            # next PDE
-    decl %esi
-    jnz map_kernel_pdes
 
+map_self_refrence_pde:
+    # Set up self-referencing PDE at index 1023
+    movl %edx, %eax          # page_directory_phys
+    orl $0x003, %eax         # Present + RW
+    movl %eax, 4092(%edx)    # PDE[1023] = page_directory_phys | 3
+
+finish_pde_mapping:
     # Load CR3 and enable paging
     movl %edx, %eax          # page_directory_phys -> eax
     movl %eax, %cr3

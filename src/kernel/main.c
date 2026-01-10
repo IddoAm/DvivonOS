@@ -48,15 +48,6 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
 
     loader_init(magic, virt_addr, phys_addr);
 
-    multiboot_mmap_entry_t* mmap = loader_get_memory_map();
-    uint32_t mmap_end = loader_get_memory_map_length() + (uintptr_t)mmap;
-    while ((uintptr_t)mmap < (mmap_end)) {
-        printf("Region: base=0x%x%x, len=0x%x%x, type=%d\n", (uint32_t)(mmap->addr >> 32),
-               (uint32_t)mmap->addr, (uint32_t)(mmap->len >> 32), (uint32_t)mmap->len, mmap->type);
-
-        mmap = (multiboot_mmap_entry_t*)((uintptr_t)mmap + mmap->size + sizeof(mmap->size));
-    }
-
     gdt_init();
     idt_init();
 
@@ -66,10 +57,18 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
 
     syscall_init();
 
+    /*
     printf("syscall: running write test via int 0x67\n");
     const char test_msg[] = "syscall test: hello from syscall_write\n";
     int r = do_syscall_write(1, test_msg, sizeof(test_msg) - 1);
     printf("syscall returned %d\n", r);
+    */
+    printf("allocating some memory\n");
+    uint32_t* value = kmalloc(sizeof(uint32_t));
+    *value = 42;
+    printf("Allocated value: %d at %x\n", *value, value);
+    kfree(value);
+    printf("Freed value\n");
 
     // Start timer before starting scheduler so IRQ0 fires
     clock_init(100); // 100 Hz
