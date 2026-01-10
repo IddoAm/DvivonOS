@@ -62,13 +62,9 @@ uint32_t vmm_read_cr3(void);
 void     vmm_flush_cr3(void);
 void     vmm_switch_address_space(page_directory_t* pd);
 
-/* Address conversion */
-uint32_t vmm_virt_to_phys(page_directory_t* pd, uint32_t vaddr);
-
 /* Generic allocator APIs */
-uintptr_t vmm_alloc_page(page_directory_t* pd);
-int vmm_alloc_page_at(page_directory_t* pd, uint32_t vaddr, uint32_t flags);
-void      vmm_free_page(page_directory_t* pd, uintptr_t vaddr);
+uintptr_t vmm_alloc_kernel_page(void);
+void vmm_free_kernel_page(uintptr_t addr);
 
 /* Mapping utilities */
 void vmm_map_page(page_directory_t* pd, uint32_t vaddr, uint32_t phys_addr, uint32_t flags);

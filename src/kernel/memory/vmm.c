@@ -92,215 +92,98 @@ void vmm_switch_address_space(page_directory_t* pd) {
 
 /* ---------------- address translation / is_mapped ---------------- */
 
-uint32_t vmm_virt_to_phys(page_directory_t* pd, uint32_t vaddr) {
-    if (!pd || !pd->virt)
+static uint32_t vmm_virt_to_phys(uint32_t vaddr) {
+    uint32_t* pt_window = (uint32_t*)0xFFC00000;
+    uint32_t* pd_window = (uint32_t*)0xFFFFF000;
+
+    if (!(pd_window[vaddr >> 22] & PAGE_PRESENT)) {
         return 0;
+    }
 
-    uint32_t pdi = pd_index(vaddr);
-    uint32_t pti = pt_index(vaddr);
-    uint32_t off = vaddr & PAGE_OFFSET_MASK;
-
-    uint32_t pde = pd->virt[pdi];
-    if (!(pde & PAGE_PRESENT))
+    uint32_t pte = pt_window[vaddr >> 12];
+    if (!(pte & PAGE_PRESENT)) {
         return 0;
+    }
 
-    uint32_t pt_phys = pde & PAGE_FRAME_MASK;
-    uint32_t* pt_virt = (uint32_t*)(KERNEL_HIGHER_HALF + (uintptr_t)pt_phys);
-    uint32_t pte = pt_virt[pti];
-    if (!(pte & PAGE_PRESENT))
-        return 0;
-
-    return (pte & PAGE_FRAME_MASK) + off;
+    return (pte & 0xFFFFF000) + (vaddr & 0xFFF);
 }
 
-static int vmm_is_mapped_in(page_directory_t* pd, uint32_t vaddr) {
-    if (!pd || !pd->virt)
-        return 0;
-    uint32_t pde = pd->virt[pd_index(vaddr)];
+static bool vmm_is_mapped(uint32_t vaddr) {
+    uint32_t* pd = (uint32_t*)0xFFFFF000;
+    uint32_t pde = pd[vaddr >> PD_INDEX_SHIFT];
+
     if (!(pde & PAGE_PRESENT))
-        return 0;
-    uint32_t* pt = (uint32_t*)(KERNEL_HIGHER_HALF + (uintptr_t)(pde & PAGE_FRAME_MASK));
-    return (pt[pt_index(vaddr)] & PAGE_PRESENT) ? 1 : 0;
+        return false;
+
+    uint32_t* pt_window = (uint32_t*)0xFFC00000;
+    uint32_t pte = pt_window[vaddr >> PT_INDEX_SHIFT];
+
+    return (pte & PAGE_PRESENT);
 }
 
 /* ---------------- mapping / unmapping ---------------- */
+static inline void vmm_set_pte_at(uint32_t window_base, uint32_t vaddr, uint32_t paddr, uint32_t flags) {
+    uint32_t* pt_window = (uint32_t*)window_base;
+    uint32_t page_num = vaddr >> 12;
 
-void vmm_map_page(page_directory_t* pd, uint32_t vaddr, uint32_t phys_addr, uint32_t flags) {
-    if (!pd || !pd->virt) {
-        printf("vmm: vmm_map_page: null pd\n");
-        return;
+    pt_window[page_num] = (paddr & 0xFFFFF000) | flags;
+
+    if (window_base == 0xFFC00000) {
+        asm volatile("invlpg (%0)" : : "r" (vaddr) : "memory");
     }
-
-    uint32_t pdi = pd_index(vaddr);
-    uint32_t pti = pt_index(vaddr);
-
-    uint32_t pde = pd->virt[pdi];
-    uint32_t* pt_virt;
-
-    if (!(pde & PAGE_PRESENT)) {
-        uint32_t new_pt_phys = pmm_alloc_page();
-        if (!new_pt_phys) {
-            printf("vmm: pmm_alloc_page() failed while creating PT\n");
-            return;
-        }
-
-        uint32_t pde_flags = PAGE_PRESENT | PAGE_RW;
-        if (flags & PAGE_USER)
-            pde_flags |= PAGE_USER;
-
-        pd->virt[pdi] = (new_pt_phys & PAGE_FRAME_MASK) | (pde_flags & PAGE_FLAGS_MASK);
-
-        pt_virt = (uint32_t*)(KERNEL_HIGHER_HALF + (uintptr_t)new_pt_phys);
-        memset(pt_virt, 0, PAGE_SIZE);
-    } else {
-        uint32_t pt_phys = pde & PAGE_FRAME_MASK;
-        pt_virt = (uint32_t*)(KERNEL_HIGHER_HALF + (uintptr_t)pt_phys);
-    }
-
-    pt_virt[pti] = (phys_addr & PAGE_FRAME_MASK) | (flags & PAGE_FLAGS_MASK);
-    vmm_invlpg((void*)(uintptr_t)vaddr);
 }
 
-void vmm_unmap_page(page_directory_t* pd, uint32_t vaddr) {
-    if (!pd || !pd->virt)
-        return;
+void vmm_map_kernel_page(uint32_t vaddr, uint32_t phys_addr) {
+    vmm_set_pte_at(0xFFC00000, vaddr, phys_addr, PAGE_PRESENT | PAGE_RW | PAGE_GLOBAL);
+}
 
-    uint32_t pdi = pd_index(vaddr);
-    uint32_t pti = pt_index(vaddr);
-
-    uint32_t pde = pd->virt[pdi];
-    if (!(pde & PAGE_PRESENT))
-        return;
-
-    uint32_t pt_phys = pde & PAGE_FRAME_MASK;
-    uint32_t* pt_virt = (uint32_t*)(KERNEL_HIGHER_HALF + (uintptr_t)pt_phys);
-
-    pt_virt[pti] = 0;
-    vmm_invlpg((void*)(uintptr_t)vaddr);
+void vmm_unmap_kernel_page(uint32_t vaddr) {
+    vmm_set_pte_at(0xFFC00000, vaddr, 0, 0);
 }
 
 /* ---------------- allocation ---------------- */
-
-uintptr_t vmm_alloc_page(page_directory_t* pd) {
-    if (!pd) return 0;
-
-    uintptr_t alloc_start, alloc_end;
-    if (pd->is_kernel) {
-        alloc_start = KERNEL_HIGHER_HALF;
-        alloc_end = MEMORY_SPACE - 1;
-    } else {
-        alloc_start = 0x00100000;
-        alloc_end = KERNEL_HIGHER_HALF;
+uintptr_t vmm_alloc_kernel_page(){
+    // Check for entry in free list
+    if (free_list.count > 0) {
+        free_list_node_t* node = free_list_pop(&free_list);
+        return  (uintptr_t)node;
     }
 
-    /* Kernel PD: keep existing free-list / last_free behavior */
-    if (pd == kernel_pd) {
-        if (free_list.count > 0) {
-            free_list_node_t* n = free_list_pop(&free_list);
-            uintptr_t addr = (uintptr_t)n;
-            if (addr >= alloc_start && addr < alloc_end) {
-                return addr;
-            } else {
-                printf("vmm: free list entry %x outside valid range [%x-%x]\n",
-                       (unsigned int)addr, (unsigned int)alloc_start, (unsigned int)alloc_end);
-            }
+    // Clamp last free
+    if (last_free < KERNEL_HIGHER_HALF || last_free >= MEMORY_SPACE) {
+        last_free = KERNEL_HIGHER_HALF;
+    }
+
+    uintptr_t start = PAGE_ALIGN_UP(last_free);
+    uintptr_t i = start;
+
+    do {
+        if (i >= MEMORY_SPACE) {
+            i = KERNEL_HIGHER_HALF;
         }
 
-        if (last_free < alloc_start || last_free >= alloc_end) {
-            last_free = alloc_start;
+        if (!vmm_is_mapped((uint32_t)i)) {
+            uint32_t phys = pmm_alloc_page();
+            if (!phys) {
+                printf("vmm: failed to allocate physical page\n");
+                return 0;
+            }
+            printf("vmm: Allocated page at virt: %x, phys: %x\n", (unsigned int)i, phys);
+            vmm_map_kernel_page((uint32_t)i, phys);
+            memset((void*)i, 0, PAGE_SIZE);
+            last_free = i + PAGE_SIZE;
+            return i;
         }
 
-        uintptr_t start = PAGE_ALIGN_UP(last_free);
-        uintptr_t i = start;
+        i += PAGE_SIZE;
+    } while (i != start);
 
-        do {
-            if (i >= alloc_end) {
-                i = alloc_start;
-                if (i >= start) {
-                    printf("vmm: no free pages in valid range [%x-%x]\n",
-                           (unsigned int)alloc_start, (unsigned int)alloc_end);
-                    return 0;
-                }
-            }
-
-            if (!vmm_is_mapped_in(pd, (uint32_t)i)) {
-                uint32_t phys = pmm_alloc_page();
-                if (!phys) {
-                    printf("vmm: pmm_alloc_page() returned 0\n");
-                    return 0;
-                }
-                printf("Allocated page at virt: %x, phys: %x\n", (unsigned int)i, phys);
-                vmm_map_page(pd, (uint32_t)i, phys, PAGE_PRESENT | PAGE_RW);
-                memset((void*)i, 0, PAGE_SIZE);
-                last_free = i + PAGE_SIZE;
-                return i;
-            }
-
-            i += PAGE_SIZE;
-            if (i >= alloc_end) {
-                i = alloc_start;
-            }
-        } while (i != start);
-
-        printf("vmm: address space exhausted in range [%x-%x]\n",
-               (unsigned int)alloc_start, (unsigned int)alloc_end);
-        return 0;
-    }
-
-    /* Non-kernel PD: allocate a physical page and map it into the target PD */
-    {
-        uintptr_t start = PAGE_ALIGN_UP(alloc_start);
-        uintptr_t i = start;
-
-        do {
-            if (i >= alloc_end) {
-                i = alloc_start;
-                if (i >= start) {
-                    printf("vmm: no free pages for user PD in range [%x-%x]\n",
-                           (unsigned int)alloc_start, (unsigned int)alloc_end);
-                    return 0;
-                }
-            }
-
-            if (!vmm_is_mapped_in(pd, (uint32_t)i)) {
-                uint32_t phys = pmm_alloc_page();
-                if (!phys) {
-                    printf("vmm: pmm_alloc_page() returned 0 for user PD\n");
-                    return 0;
-                }
-                /* Map with user permissions */
-                vmm_map_page(pd, (uint32_t)i, phys, PAGE_PRESENT | PAGE_RW | PAGE_USER);
-                /* The kernel is currently running with kernel_cr3 — 'i' is not mapped
-                   in the kernel address space. Zero the physical page via the kernel's
-                   direct-mapping (KERNEL_HIGHER_HALF + phys) instead. */
-                memset((void*)(KERNEL_HIGHER_HALF + (uintptr_t)phys), 0, PAGE_SIZE);
-                return i;
-            }
-
-            i += PAGE_SIZE;
-        } while (i != start);
-
-        printf("vmm: user address space exhausted in range [%x-%x]\n",
-               (unsigned int)alloc_start, (unsigned int)alloc_end);
-        return 0;
-    }
-}
-
-int vmm_alloc_page_at(page_directory_t* pd, uint32_t vaddr, uint32_t flags) {
-    uint32_t phys = pmm_alloc_page();
-    if (!phys) return -1;
-    vmm_map_page(pd, vaddr, phys, flags);
-    /* Zero the page using kernel mapping of the physical frame */
-    memset((void*)(KERNEL_HIGHER_HALF + (uintptr_t)phys), 0, PAGE_SIZE);
+    printf("vmm: no free kernel pages [%x-%x]\n",
+            (unsigned int)KERNEL_HIGHER_HALF, (unsigned int)MEMORY_SPACE-1);
     return 0;
 }
 
-void vmm_free_page(page_directory_t* pd, uintptr_t addr) {
-    if (pd != kernel_pd) {
-        printf("vmm_free_page: only kernel PD supported for automatic free\n");
-        return;
-    }
-
+void vmm_free_kernel_page(uintptr_t addr) {
     free_list_node_t* node = (free_list_node_t*)addr;
     free_list_add(&free_list, node);
 
@@ -309,9 +192,9 @@ void vmm_free_page(page_directory_t* pd, uintptr_t addr) {
         if (!to_free)
             break;
         uintptr_t vaddr = (uintptr_t)to_free;
-        uint32_t phys = vmm_virt_to_phys(pd, (uint32_t)vaddr);
+        uint32_t phys = vmm_virt_to_phys((uint32_t)vaddr);
         if (phys) {
-            vmm_unmap_page(pd, (uint32_t)vaddr);
+            vmm_unmap_kernel_page((uint32_t)vaddr);
             pmm_free_page(phys);
         }
     }
@@ -320,6 +203,8 @@ void vmm_free_page(page_directory_t* pd, uintptr_t addr) {
 /* ---------------- address-space creation ---------------- */
 
 page_directory_t* vmm_create_address_space(void) {
+    printf("Not Implemented Yet");
+    /*
     if (!kernel_pd) {
         printf("vmm_create_address_space: kernel_pd not initialized\n");
         return NULL;
@@ -358,4 +243,5 @@ page_directory_t* vmm_create_address_space(void) {
     pd_struct->is_kernel = 0;
 
     return pd_struct;
+    */
 }

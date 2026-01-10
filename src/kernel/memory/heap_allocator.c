@@ -92,7 +92,7 @@ static free_block_header_t* split_block(heap_context_t* heap, free_block_header_
 
 /* ---- Page allocation ---- */
 static uintptr_t allocate_new_heap_page(heap_context_t* heap) {
-    uintptr_t page = vmm_alloc_page(heap->page_dir);
+    uintptr_t page = vmm_alloc_kernel_page();
     if (!page)
         return 0;
 

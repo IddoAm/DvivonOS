@@ -98,6 +98,7 @@ void process_init(process_t* p, void (*entry)(void)) {
     p->heap = heap_create(PROCESS_HEAP_START, 8, 1024, pd);
 
     // Allocate user stack
+    /*
     for (int i = 0; i < USER_STACK_PAGES; i++) {
         uint32_t stack_page_vaddr = PROCESS_STACK_TOP - (i + 1) * PAGE_SIZE;
         if (vmm_alloc_page_at(pd, stack_page_vaddr, PAGE_PRESENT | PAGE_RW | PAGE_USER) != 0) {
@@ -105,6 +106,7 @@ void process_init(process_t* p, void (*entry)(void)) {
             return;
         }
     }
+    */
 
     // Set up initial context
     interrupt_frame_t* frame = kmalloc(sizeof(interrupt_frame_t));
