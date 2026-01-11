@@ -2,6 +2,13 @@
 #include <lib/stdio.h>
 #include <prog/terminal.h>
 
+stdio_interface_t vga_interface = {
+    .clear = vga_clear,
+    .init = vga_initialize,
+    .putc = vga_putchar,
+    .puts = vga_writestring
+};
+
 bool _is_printable_ascii(uint8_t ascii) {
     return ascii >= ' ' && ascii <= '~';
 }
@@ -43,6 +50,7 @@ void _scroll_down_once(void) {
 }
 
 void terminal_initialize(void) {
+    stdio_set_interface(&vga_interface);
     stdio_init();
     vga_set_eof_handler(_scroll_down_once);
     printf("%oWelcome to Iddo and Hillel amazing os!!!!\n", STD_COLOR_MAGENTA);
