@@ -6,6 +6,7 @@ build/
 # ISO image
 myos.iso
 
+**iso/boot/grub/grub.cfg
 # OS-reserved files
 *.elf
 *.img
