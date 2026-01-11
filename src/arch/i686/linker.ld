@@ -82,7 +82,7 @@ SECTIONS
     {
         . = ALIGN(PAGE);
         _page_tables_start = .;
-        . += 255 * PAGE;
+        . += 254 * PAGE;
         _page_tables_end = .;
     }
 

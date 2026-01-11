@@ -63,38 +63,25 @@ static free_list_node_t* free_list_pop(free_list_t* list) {
 
 #define PAGE_ALIGN_UP(x) (((uintptr_t)(x) + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1))
 
-/* ---------------- public accessor ---------------- */
-
-page_directory_t* vmm_get_kernel_pd(void) {
-    return kernel_pd;
-}
 
 /* ---------------- vmm init / switch ---------------- */
 
 void vmm_init(void) {
-    if (kernel_pd != NULL)
-        return;
-
-    static page_directory_t kernel_pd_storage;
-    kernel_pd = &kernel_pd_storage;
-
-    kernel_pd->virt = _page_directory_start;
-    kernel_pd->phys = vmm_read_cr3() & PAGE_FRAME_MASK;
-    kernel_pd->is_kernel = 1;
+    // Nothing needed here for now
 }
 
-void vmm_switch_address_space(page_directory_t* pd) {
-    if (!pd)
+void vmm_switch_address_space(uint32_t phys_addr) {
+    if (!phys_addr)
         return;
-    vmm_write_cr3(pd->phys);
+    vmm_write_cr3(phys_addr);
     vmm_flush_cr3();
 }
 
 /* ---------------- address translation / is_mapped ---------------- */
 
 static uint32_t vmm_virt_to_phys(uint32_t vaddr) {
-    uint32_t* pt_window = (uint32_t*)0xFFC00000;
-    uint32_t* pd_window = (uint32_t*)0xFFFFF000;
+    uint32_t* pt_window = (uint32_t*)PT_WINDOW;
+    uint32_t* pd_window = (uint32_t*)PD_WINDOW;
 
     if (!(pd_window[vaddr >> 22] & PAGE_PRESENT)) {
         return 0;
@@ -128,17 +115,17 @@ static inline void vmm_set_pte_at(uint32_t window_base, uint32_t vaddr, uint32_t
 
     pt_window[page_num] = (paddr & 0xFFFFF000) | flags;
 
-    if (window_base == 0xFFC00000) {
+    if (window_base == PD_WINDOW) {
         asm volatile("invlpg (%0)" : : "r" (vaddr) : "memory");
     }
 }
 
 void vmm_map_kernel_page(uint32_t vaddr, uint32_t phys_addr) {
-    vmm_set_pte_at(0xFFC00000, vaddr, phys_addr, PAGE_PRESENT | PAGE_RW | PAGE_GLOBAL);
+    vmm_set_pte_at(PD_WINDOW, vaddr, phys_addr, PAGE_PRESENT | PAGE_RW | PAGE_GLOBAL);
 }
 
 void vmm_unmap_kernel_page(uint32_t vaddr) {
-    vmm_set_pte_at(0xFFC00000, vaddr, 0, 0);
+    vmm_set_pte_at(PTS_WINDOW, vaddr, 0, 0);
 }
 
 /* ---------------- allocation ---------------- */
@@ -202,46 +189,51 @@ void vmm_free_kernel_page(uintptr_t addr) {
 
 /* ---------------- address-space creation ---------------- */
 
-page_directory_t* vmm_create_address_space(void) {
-    printf("Not Implemented Yet");
-    /*
-    if (!kernel_pd) {
-        printf("vmm_create_address_space: kernel_pd not initialized\n");
-        return NULL;
+// Return physical address of created pd
+uint32_t vmm_create_address_space(void) {
+    uint32_t new_pd_phys = pmm_alloc_page();
+    if (!new_pd_phys) return 0;
+
+    vmm_set_pte_at(PD_WINDOW, PD_SCRATCH_WINDOW, new_pd_phys, PAGE_PRESENT | PAGE_RW);
+
+    memset((void*)PD_SCRATCH_WINDOW, 0, PAGE_SIZE);
+
+    uint32_t* current_pd = (uint32_t*)PD_WINDOW;
+    uint32_t* new_pd = (uint32_t*)PD_SCRATCH_WINDOW;
+
+    // copy kernel PDEs
+    for (uint32_t i = 768; i < 1023; i++) {
+        new_pd[i] = current_pd[i];
     }
 
-    uintptr_t new_pd_virt = vmm_alloc_page(kernel_pd);
-    if (!new_pd_virt) {
-        printf("vmm_create_address_space: failed to allocate PD page\n");
-        return NULL;
+    // setup self reference
+    new_pd[1023] = new_pd_phys | PAGE_PRESENT | PAGE_RW;
+
+    return new_pd_phys;
+}
+
+void vmm_destroy_address_space(uint32_t pd_phys) {
+    vmm_set_pte_at(PD_WINDOW, PD_SCRATCH_WINDOW, pd_phys, PAGE_PRESENT | PAGE_RW);
+
+
+    uint32_t* victim_pd = (uint32_t*)PD_SCRATCH_WINDOW; // The PD via recursive mapping
+    uint32_t* victim_pts = (uint32_t*)PTS_SCRATCH_WINDOW; // The PTs via recursive mapping
+
+    // 2. Loop through User-space entries only
+    for (uint32_t i = 0; i < 768; i++) {
+        if (victim_pd[i] & PAGE_PRESENT) {
+            uint32_t* pt = &victim_pts[i * 1024];
+
+            for (uint32_t j = 0; j < 1024; j++) {
+                if (pt[j] & PAGE_PRESENT) {
+                    pmm_free_page(pt[j] & 0xFFFFF000);
+                }
+            }
+
+            pmm_free_page(victim_pd[i] & 0xFFFFF000);
+        }
     }
 
-    uint32_t new_pd_phys = vmm_virt_to_phys(kernel_pd, (uint32_t)new_pd_virt);
-    if (!new_pd_phys) {
-        printf("vmm_create_address_space: failed to resolve PD phys\n");
-        return NULL;
-    }
-
-    memset((void*)new_pd_virt, 0, PAGE_SIZE);
-
-    uint32_t kernel_pde_start = (uint32_t)(KERNEL_HIGHER_HALF >> PD_INDEX_SHIFT);
-    if (kernel_pde_start > 1024) kernel_pde_start = 768;
-
-    for (int i = (int)kernel_pde_start; i < 1024; i++) {
-        ((uint32_t*)new_pd_virt)[i] = kernel_pd->virt[i];
-    }
-
-    uintptr_t meta_virt = vmm_alloc_page(kernel_pd);
-    if (!meta_virt) {
-        printf("vmm_create_address_space: failed to allocate metadata page\n");
-        return NULL;
-    }
-
-    page_directory_t* pd_struct = (page_directory_t*)meta_virt;
-    pd_struct->virt = (uint32_t*)new_pd_virt;
-    pd_struct->phys = new_pd_phys;
-    pd_struct->is_kernel = 0;
-
-    return pd_struct;
-    */
+    vmm_set_pte_at(PD_WINDOW, PD_SCRATCH_WINDOW, 0, 0); 
+    pmm_free_page(pd_phys);
 }

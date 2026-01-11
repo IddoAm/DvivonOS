@@ -73,7 +73,7 @@ _start:
     # Also zero out all page tables
     movl %ebx, %edi                  # edi = page_tables_phys
     xorl %eax, %eax                  # zero
-    movl $(255 * 1024), %ecx         # 255 tables * 1024 entries
+    movl $(254 * 1024), %ecx         # 254 tables * 1024 entries
     rep stosl                        # zero all PTEs
 
     # Reload registers after using them for zeroing
@@ -128,11 +128,11 @@ end_mapping:
     orl $0x003, %ecx
     movl %ecx, (%edx)        # Write to page_directory[0]
 
-    # Map kernel PDEs (768..1023 -> 255 PDEs)
+    # Map kernel PDEs (768..1023 -> 254 PDEs)
     movl %edx, %ebp          # ebp = page_directory_phys
     addl $(768*4), %ebp      # ebp points at PDE[768]
     movl %ebx, %ecx          # ecx = page_tables_phys (first kernel table)
-    movl $255, %esi          # esi = count
+    movl $254, %esi          # esi = count
 
 map_kernel_pdes:
     movl %ecx, %eax          # move PT address into eax

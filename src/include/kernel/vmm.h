@@ -24,6 +24,12 @@
 
 #define VMM_FREE_LIST_MAX_SIZE 128
 
+#define PD_WINDOW 0xFFFFF000
+#define PTS_WINDOW 0xFFC00000
+
+#define PD_SCRATCH_WINDOW (PD_WINDOW - PAGE_SIZE)
+#define PTS_SCRATCH_WINDOW (PTS_WINDOW - PAGE_SIZE)
+
 typedef uint32_t page_table_entry_t;
 
 /* ---- Free list ---- */
@@ -38,20 +44,9 @@ typedef struct free_list {
     uint32_t count;
 } free_list_t;
 
-/* ---- Page directory ---- */
-typedef struct page_directory {
-    uint32_t* virt;  /* Virtual address of page directory */
-    uint32_t  phys;  /* Physical address (for CR3) */
-    int is_kernel;   /* Higher half is kernel-shared */
-} page_directory_t;
-
 /* Provided by linker */
 extern uint32_t _page_directory_start[];
 extern uint32_t _page_tables_start[];
-
-static page_directory_t* kernel_pd;
-
-page_directory_t* vmm_get_kernel_pd(void);
 
 /* Initialize kernel page directory object */
 void vmm_init(void);
@@ -60,17 +55,14 @@ void vmm_init(void);
 void     vmm_write_cr3(uint32_t phys_addr);
 uint32_t vmm_read_cr3(void);
 void     vmm_flush_cr3(void);
-void     vmm_switch_address_space(page_directory_t* pd);
+void     vmm_switch_address_space(uint32_t phys_addr);
 
 /* Generic allocator APIs */
 uintptr_t vmm_alloc_kernel_page(void);
 void vmm_free_kernel_page(uintptr_t addr);
 
-/* Mapping utilities */
-void vmm_map_page(page_directory_t* pd, uint32_t vaddr, uint32_t phys_addr, uint32_t flags);
-void vmm_unmap_page(page_directory_t* pd, uint32_t vaddr);
-
 /* Create user address space (kernel high half copied) */
-page_directory_t* vmm_create_address_space(void);
+uint32_t vmm_create_address_space(void);
+void vmm_destroy_address_space(uint32_t pd_phys);
 
 #endif
