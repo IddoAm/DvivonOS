@@ -10,6 +10,9 @@
 
 #define BLOCK_FREE 0x1
 
+#define KHEAP_START 0xC1000000
+#define KHEAP_END 0xC2000000
+
 typedef struct block_header {
     uint32_t size_and_flags;
 } block_header_t;

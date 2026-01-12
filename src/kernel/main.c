@@ -78,7 +78,7 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
     *value = 42;
     printf("Allocated value: %d at %x\n", *value, value);
     kfree((uintptr_t)value);
-
+    printf("Freed allocated memory\n");
     dump_page_directory();
 
     // Start timer before starting scheduler so IRQ0 fires
