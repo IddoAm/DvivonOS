@@ -21,7 +21,7 @@ void context_switch(process_t* from, process_t* to, interrupt_frame_t* frame) {
     // Switch to new process
     current_process = to;
     current_process_ticks = 0;
-    vmm_switch_address_space(to->heap->page_dir);
+    vmm_switch_address_space(to->pd_phys);
     
     // Load incoming process state
     memcpy(frame, to->context, sizeof(interrupt_frame_t));
@@ -86,7 +86,7 @@ void scheduler_start() {
     current_process = (process_t*)process_list;
     state = SCHED_STATE_READY;
 
-    vmm_switch_address_space(current_process->heap->page_dir);
+    vmm_switch_address_space(current_process->pd_phys);
     scheduler_init();
 }
 
@@ -94,22 +94,19 @@ void process_init(process_t* p, void (*entry)(void)) {
     // To set const value
     *(uint32_t*)&p->pid = next_pid++;
 
-    page_directory_t* pd = vmm_create_address_space();
-    p->heap = heap_create(PROCESS_HEAP_START, 8, 1024, pd);
+    p->pd_phys = vmm_create_address_space();
 
     // Allocate user stack
-    /*
     for (int i = 0; i < USER_STACK_PAGES; i++) {
         uint32_t stack_page_vaddr = PROCESS_STACK_TOP - (i + 1) * PAGE_SIZE;
-        if (vmm_alloc_page_at(pd, stack_page_vaddr, PAGE_PRESENT | PAGE_RW | PAGE_USER) != 0) {
+        if (vmm_alloc_user_page_at(stack_page_vaddr) == false) {
             printf("process_init: failed to allocate user stack page\n");
             return;
         }
     }
-    */
 
     // Set up initial context
-    interrupt_frame_t* frame = kmalloc(sizeof(interrupt_frame_t));
+    interrupt_frame_t* frame = (interrupt_frame_t*)kmalloc(sizeof(interrupt_frame_t));
     memset(frame, 0, sizeof(*frame));
 
     frame->eip = (uint32_t)entry;
@@ -149,14 +146,12 @@ void process_exit(process_t* proc, interrupt_frame_t* frame) {
     }
     
     // Free context
-    kfree(proc->context);
-    
-    // Free resources
-    // IMPORTANT TODO:
-    // AFTER VMM REFACTOR DESTROY PROCESS ADDRESS SPACE HERE
+    kfree((uintptr_t)proc->context);
 
-    kfree(proc);
-    
+    // Free resources
+    vmm_destroy_address_space(proc->pd_phys);
+    kfree((uintptr_t)proc);
+
     // If current process is exiting, force immediate reschedule
     if (proc == current_process) {
         process_t* next = (process_t*)process_list;

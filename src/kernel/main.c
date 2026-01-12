@@ -64,8 +64,6 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
     idt_init();
 
     pmm_init(loader_get_memory_map(), loader_get_memory_map_length());
-	vmm_init();
-	heap_init_kernel(0xC0400000, 16);
 
     syscall_init();
 
@@ -76,11 +74,10 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
     printf("syscall returned %d\n", r);
     */
     printf("allocating some memory\n");
-    uint32_t* value = kmalloc(sizeof(uint32_t));
+    uint32_t* value = (uint32_t*)kmalloc(sizeof(uint32_t));
     *value = 42;
     printf("Allocated value: %d at %x\n", *value, value);
-    kfree(value);
-    printf("Freed value\n");
+    kfree((uintptr_t)value);
 
     dump_page_directory();
 

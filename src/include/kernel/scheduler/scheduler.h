@@ -22,7 +22,7 @@ typedef struct process {
     const uint32_t pid;
 
     interrupt_frame_t* context; 
-    heap_context_t* heap;
+    uint32_t pd_phys;
 
     struct process* next;
 } process_t;

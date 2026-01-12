@@ -58,8 +58,12 @@ void     vmm_flush_cr3(void);
 void     vmm_switch_address_space(uint32_t phys_addr);
 
 /* Generic allocator APIs */
+bool vmm_alloc_kernel_page_at(uint32_t vaddr);
 uintptr_t vmm_alloc_kernel_page(void);
-void vmm_free_kernel_page(uintptr_t addr);
+void vmm_free_kernel_page(uint32_t vaddr);
+
+bool vmm_alloc_user_page_at(uint32_t vaddr);
+void vmm_free_user_page(uint32_t vaddr);
 
 /* Create user address space (kernel high half copied) */
 uint32_t vmm_create_address_space(void);
