@@ -109,6 +109,13 @@ static bool vmm_is_mapped(uint32_t vaddr) {
 }
 
 /* ---------------- mapping / unmapping ---------------- */
+static inline void vmm_set_pde_at(uint32_t window_base, uint32_t vaddr, uint32_t paddr, uint32_t flags) {
+    uint32_t* pd_window = (uint32_t*)window_base;
+    uint32_t pd_num = vaddr >> PD_INDEX_SHIFT;
+
+    pd_window[pd_num] = (paddr & 0xFFFFF000) | flags;
+}
+
 static inline void vmm_set_pte_at(uint32_t window_base, uint32_t vaddr, uint32_t paddr, uint32_t flags) {
     uint32_t* pt_window = (uint32_t*)window_base;
     uint32_t page_num = vaddr >> PT_INDEX_SHIFT;
@@ -125,7 +132,29 @@ static inline void vmm_map_kernel_page(uint32_t vaddr, uint32_t phys_addr) {
 }
 
 static inline void vmm_map_user_page(uint32_t vaddr, uint32_t phys_addr) {
+    uint32_t pd_idx = vaddr >> 22; // The PD index determines which PT we are talking about
+    uint32_t* pd = (uint32_t*)PD_WINDOW;
+
+    if ((pd[pd_idx] & PAGE_PRESENT) == 0) {
+        printf("vmm: allocating page table for vaddr %x (PD index %d)\n", vaddr, pd_idx);
+        uint32_t new_pt_phys = pmm_alloc_page();
+        if (!new_pt_phys) return;
+
+        vmm_set_pde_at(PD_WINDOW, vaddr, new_pt_phys, PAGE_PRESENT | PAGE_RW | PAGE_USER);
+
+        // 1. Calculate the virtual address of the PT in the recursive map
+        // Each PT is one PAGE_SIZE (4KB) inside the PTS_WINDOW
+        void* pt_vaddr = (void*)(PTS_WINDOW + (pd_idx * PAGE_SIZE));
+
+        // 2. CRITICAL: Invalidate the PT's virtual address, NOT the user vaddr
+        vmm_invlpg(pt_vaddr);
+
+        // 3. Zero out the PT
+        memset(pt_vaddr, 0, PAGE_SIZE);
+    }
+    printf("Allocating user page at virt: %x, phys: %x\n", (unsigned int)vaddr, phys_addr);
     vmm_set_pte_at(PTS_WINDOW, vaddr, phys_addr, PAGE_PRESENT | PAGE_RW | PAGE_USER);
+    printf("Success\n");
 }
 
 static inline void vmm_unmap_page(uint32_t vaddr) {
@@ -205,7 +234,7 @@ bool vmm_alloc_user_page_at(uint32_t vaddr) {
         printf("vmm: failed to allocate physical page\n");
         return false;
     }
-    printf("vmm: Allocated user page at virt: %x, phys: %x\n", (unsigned int)vaddr, phys);
+
     vmm_map_user_page(vaddr, phys);
     memset((void*)vaddr, 0, PAGE_SIZE);
     return true;
@@ -226,27 +255,44 @@ void vmm_free_user_page(uint32_t vaddr) {
 uint32_t vmm_create_address_space(void) {
     uint32_t new_pd_phys = pmm_alloc_page();
     if (!new_pd_phys) return 0;
-
-    vmm_set_pte_at(PD_WINDOW, PD_SCRATCH_WINDOW, new_pd_phys, PAGE_PRESENT | PAGE_RW);
-
-    memset((void*)PD_SCRATCH_WINDOW, 0, PAGE_SIZE);
-
+    printf("goo");
+    // 1. Map the new PD into our "Scratch" slot (1022)
+    // We don't use vmm_set_pde_at with PD_SCRATCH_WINDOW because that macro 
+    // is the TARGET address, not the VADDR we are mapping.
     uint32_t* current_pd = (uint32_t*)PD_WINDOW;
+    printf("goo");
+    // Per your instructions: Kernel allocations use the GLOBAL flag (bit 8)
+    current_pd[1022] = new_pd_phys | PAGE_PRESENT | PAGE_RW | PAGE_GLOBAL;
+    printf("goo");
+    // 2. Flush the TLB so the CPU sees the new mapping at 0xFFFFE000
+    vmm_invlpg((void*)PD_SCRATCH_WINDOW);
+    printf("goo");
     uint32_t* new_pd = (uint32_t*)PD_SCRATCH_WINDOW;
 
-    // copy kernel PDEs
-    for (uint32_t i = 768; i < 1023; i++) {
+    // 3. Clear the user-space part (0-767) to ensure it's empty
+    for (uint32_t i = 0; i < 768; i++) {
+        new_pd[i] = 0;
+    }
+    printf("goo");
+    // 4. Copy kernel PDEs (768-1021)
+    for (uint32_t i = 768; i < 1022; i++) {
         new_pd[i] = current_pd[i];
     }
-
-    // setup self reference
-    new_pd[1023] = new_pd_phys | PAGE_PRESENT | PAGE_RW;
-
+    printf("goo");
+    // 5. Setup self-reference for the NEW PD at its own index 1023
+    // This must also be GLOBAL as it's a kernel-level structural mapping.
+    new_pd[1023] = new_pd_phys | PAGE_PRESENT | PAGE_RW | PAGE_GLOBAL;
+    printf("goo");
+    // 6. Clean up: Unmap from scratch slot (optional but cleaner)
+    current_pd[1022] = 0;
+    printf("goo");
+    vmm_invlpg((void*)PD_SCRATCH_WINDOW);
+    printf("goo");
     return new_pd_phys;
 }
 
 void vmm_destroy_address_space(uint32_t pd_phys) {
-    vmm_set_pte_at(PD_WINDOW, PD_SCRATCH_WINDOW, pd_phys, PAGE_PRESENT | PAGE_RW);
+    vmm_set_pde_at(PD_WINDOW, PD_SCRATCH_WINDOW, pd_phys, PAGE_PRESENT | PAGE_RW);
 
 
     uint32_t* victim_pd = (uint32_t*)PD_SCRATCH_WINDOW; // The PD via recursive mapping

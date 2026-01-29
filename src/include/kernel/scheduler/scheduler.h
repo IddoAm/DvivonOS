@@ -28,8 +28,12 @@ typedef struct process {
 } process_t;
 
 void scheduler_init();
+void scheduler_start();
 void process_init(process_t* t, void (*entry)(void));
 void process_exit(process_t* proc, interrupt_frame_t* frame);
+
+void scheduler_add_process(process_t* proc);
+bool process_load_user_memory(process_t* p, uint32_t vaddr, const void* src, size_t len);
 
 process_t* get_current_process(void);
 

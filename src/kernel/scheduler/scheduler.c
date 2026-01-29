@@ -28,6 +28,7 @@ void context_switch(process_t* from, process_t* to, interrupt_frame_t* frame) {
 }
 
 void schedule(interrupt_frame_t* frame) {
+    printf(".");
     if (state == SCHED_STATE_STARTING) {
         state = SCHED_STATE_RUNNING;
         memcpy(frame, current_process->context, sizeof(interrupt_frame_t));
@@ -53,11 +54,14 @@ void schedule(interrupt_frame_t* frame) {
 }
 
 void scheduler_init() {
+    printf("Starting scheduler...\n");
     if (state != SCHED_STATE_READY)
         return;
 
+    printf("Starting scheduler...\n");
     isr_register_handler(irq_to_vector(0), (interrupt_handler_t)schedule);
     state = SCHED_STATE_STARTING;
+    printf("Starting scheduler...\n");
 
     for (;;)
         asm volatile("hlt");
@@ -78,6 +82,7 @@ void scheduler_add_process(process_t* proc) {
 }
 
 void scheduler_start() {
+    printf("Starting scheduler...\n");
     if (!process_list) {
         printf("scheduler_start: no processes to run\n");
         return;
@@ -95,20 +100,24 @@ void process_init(process_t* p, void (*entry)(void)) {
     *(uint32_t*)&p->pid = next_pid++;
 
     p->pd_phys = vmm_create_address_space();
+    // Allocate user stack - allocate while switched to the new address space
+    uint32_t old_cr3 = vmm_read_cr3();
+    vmm_switch_address_space(p->pd_phys);
 
-    // Allocate user stack
     for (int i = 0; i < USER_STACK_PAGES; i++) {
         uint32_t stack_page_vaddr = PROCESS_STACK_TOP - (i + 1) * PAGE_SIZE;
         if (vmm_alloc_user_page_at(stack_page_vaddr) == false) {
             printf("process_init: failed to allocate user stack page\n");
+            // restore old cr3 before returning
+            vmm_switch_address_space(old_cr3);
             return;
         }
     }
-
+    // restore original address space
+    vmm_switch_address_space(old_cr3);
     // Set up initial context
     interrupt_frame_t* frame = (interrupt_frame_t*)kmalloc(sizeof(interrupt_frame_t));
     memset(frame, 0, sizeof(*frame));
-
     frame->eip = (uint32_t)entry;
     frame->cs = GDT_USER_CODE_SEL;
     frame->eflags = 0x202;
@@ -122,6 +131,34 @@ void process_init(process_t* p, void (*entry)(void)) {
 
     p->context = frame;
     p->next = NULL;
+}
+
+// Load a blob (code/data) into a process virtual address.
+// Returns true on success.
+bool process_load_user_memory(process_t* p, uint32_t vaddr, const void* src, size_t len) {
+    if (!p || !src || len == 0) return false;
+
+    uint32_t old_cr3 = vmm_read_cr3();
+    vmm_switch_address_space(p->pd_phys);
+
+    uint32_t start = vaddr & ~(PAGE_SIZE - 1);
+    uint32_t end = (vaddr + len + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+
+    // allocate pages covering the range
+    for (uint32_t a = start; a < end; a += PAGE_SIZE) {
+        if (!vmm_alloc_user_page_at(a)) {
+            // restore and fail
+            vmm_switch_address_space(old_cr3);
+            return false;
+        }
+    }
+
+    // copy the data into user virtual memory (we are currently in that PD)
+    memcpy((void*)vaddr, src, len);
+
+    // restore original address space
+    vmm_switch_address_space(old_cr3);
+    return true;
 }
 
 // Must be called within an interrupt context
