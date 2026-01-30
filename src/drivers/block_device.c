@@ -80,4 +80,5 @@ block_device_t *block_device_get(uint32_t major, uint32_t minor)
 void block_device_put(block_device_t *dev)
 {
     /* Placeholder for future refcounting implementation */
+    //TODO: Implement reference counting if we want in the future
 }
