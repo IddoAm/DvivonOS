@@ -23,6 +23,8 @@ typedef struct process {
 
     interrupt_frame_t* context; 
     uint32_t pd_phys;
+    
+    uint32_t kernel_stack_top;
 
     struct process* next;
 } process_t;

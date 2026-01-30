@@ -1,6 +1,8 @@
 #ifndef GDT_H
 #define GDT_H
 
+#include <stdint.h>
+
 /* GDT configuration constants */
 /* increase to include: null, kcode, kdata, ucode, udata, TSS (reserve) */
 #define GDT_ENTRY_COUNT 6
@@ -38,5 +40,6 @@
 #define GDT_GRANULARITY_FLAGS 0xC /* Granularity=1 (4KB pages), 32-bit=1 */
 
 void gdt_init(void);
+void tss_set_stack(uint32_t esp0);
 
 #endif

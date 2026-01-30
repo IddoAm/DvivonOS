@@ -136,7 +136,7 @@ static inline void vmm_map_user_page(uint32_t vaddr, uint32_t phys_addr) {
     uint32_t* pd = (uint32_t*)PD_WINDOW;
 
     if ((pd[pd_idx] & PAGE_PRESENT) == 0) {
-        printf("vmm: allocating page table for vaddr %x (PD index %d)\n", vaddr, pd_idx);
+        //printf("vmm: allocating page table for vaddr %x (PD index %d)\n", vaddr, pd_idx);
         uint32_t new_pt_phys = pmm_alloc_page();
         if (!new_pt_phys) return;
 
@@ -152,9 +152,9 @@ static inline void vmm_map_user_page(uint32_t vaddr, uint32_t phys_addr) {
         // 3. Zero out the PT
         memset(pt_vaddr, 0, PAGE_SIZE);
     }
-    printf("Allocating user page at virt: %x, phys: %x\n", (unsigned int)vaddr, phys_addr);
+    //printf("Allocating user page at virt: %x, phys: %x\n", (unsigned int)vaddr, phys_addr);
     vmm_set_pte_at(PTS_WINDOW, vaddr, phys_addr, PAGE_PRESENT | PAGE_RW | PAGE_USER);
-    printf("Success\n");
+    //printf("Success\n");
 }
 
 static inline void vmm_unmap_page(uint32_t vaddr) {

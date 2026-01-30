@@ -53,81 +53,110 @@ static int do_syscall_write(int fd, const char* buf, size_t len) {
 }
 
 void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
-    // todo: move this to terminal file
+    // --- Initialization ---
     stdio_interface_t vga_interface = {
         .init = vga_initialize, .clear = vga_clear, .putc = vga_putchar, .puts = vga_writestring};
     stdio_set_interface(&vga_interface);
     stdio_init();
-    printf("Welcome to Iddo's and hillel's amazing OS\n");
+    
+    printf("[KERNEL] Booting Iddo & Hillel's OS...\n");
 
     loader_init(magic, virt_addr, phys_addr);
-
     gdt_init();
     idt_init();
-
     pmm_init(loader_get_memory_map(), loader_get_memory_map_length());
-
     syscall_init();
 
-    /*
-    printf("syscall: running write test via int 0x67\n");
-    const char test_msg[] = "syscall test: hello from syscall_write\n";
-    int r = do_syscall_write(1, test_msg, sizeof(test_msg) - 1);
-    printf("syscall returned %d\n", r);
-    */
-    printf("allocating some memory\n");
+    // --- Sanity Check: Kernel Heap ---
+    printf("[DEBUG] Testing Kernel Heap...\n");
     uint32_t* value = (uint32_t*)kmalloc(sizeof(uint32_t));
-    *value = 42;
-    printf("Allocated value: %d at %x\n", *value, value);
-    kfree((uintptr_t)value);
-    printf("Freed allocated memory\n");
-
-    /* create a user process and load a tiny i686 user program */
-    process_t* proc = (process_t*)kmalloc(sizeof(process_t));
-    if (!proc) {
-        printf("failed to alloc process struct\n");
-    } else {
-        memset(proc, 0, sizeof(*proc));
-        printf("la");
-        // set initial EIP to PROCESS_HEAP_START (we'll put the program there)
-        process_init(proc, (void*)PROCESS_HEAP_START);
-        printf("la");
-        // Example i686 user loop: syscall_write(1, msg, len) using int 0x67 then loop
-        const uint8_t user_code[] = {
-            0xB8, 0x01,0x00,0x00,0x00,    // mov eax, 1          ; SYSCALL_WRITE (adjust if different)
-            0xBB, 0x01,0x00,0x00,0x00,    // mov ebx, 1          ; fd = 1
-            0xB9, 0x00,0x00,0x00,0x00,    // mov ecx, <msg_addr> ; patched below
-            0xBA, 0x0F,0x00,0x00,0x00,    // mov edx, 15         ; len of message
-            0xCD, 0x67,                   // int 0x67            ; syscall interrupt
-            0xEB, 0xF0                    // jmp short -16       ; loop forever
-        };
-        const char msg[] = "Hello from i686\n"; // 15 bytes (without terminating 0)
-        const size_t code_len = sizeof(user_code);
-        const size_t msg_len = sizeof(msg) - 1;
-        const uint32_t code_vaddr = PROCESS_HEAP_START;
-        const uint32_t msg_vaddr = code_vaddr + (uint32_t)code_len;
-        printf("Check again\n");
-        // patch ecx immediate (little endian)
-        uint8_t code_patched[sizeof(user_code)];
-        memcpy(code_patched, user_code, sizeof(user_code));
-        *(uint32_t*)&code_patched[11] = msg_vaddr;
-        printf("Check again\n");
-        // load code + message into the process address space
-        if (!process_load_user_memory(proc, code_vaddr, code_patched, code_len)) {
-            printf("failed to load user code\n");
-        }
-        printf("Check again\n");
-        if (!process_load_user_memory(proc, msg_vaddr, msg, msg_len)) {
-            printf("failed to load user message\n");
-        }
-        printf("Check again\n");
-
-        // add to scheduler
-        scheduler_add_process(proc);
+    if (!value) {
+        printf("[PANIC] Kernel heap allocation failed immediately!\n");
+        return;
     }
-    printf("LALA\n");
-    // Start timer before starting scheduler so IRQ0 fires
-    clock_init(100); // 100 Hz
-    scheduler_start();
+    *value = 42;
+    printf("[DEBUG] Heap functional. Alloc at %x, Value: %d\n", value, *value);
+    kfree((uintptr_t)value);
 
+    // --- Process Creation ---
+    printf("\n[PROCESS] Creating User Process...\n");
+    process_t* proc = (process_t*)kmalloc(sizeof(process_t));
+    
+    if (!proc) {
+        printf("[PANIC] Failed to allocate process struct\n");
+        return;
+    }
+    memset(proc, 0, sizeof(*proc));
+
+    // 1. Initialize Process Structure
+    // Note: process_init now allocates a per-process kernel stack and updates TSS
+    printf("[DEBUG] Calling process_init with Entry Point: 0x%x\n", PROCESS_HEAP_START);
+    process_init(proc, (void*)PROCESS_HEAP_START);
+
+    if (!proc->context) {
+        printf("[PANIC] process_init failed to create context!\n");
+        return;
+    }
+
+    // 2. Prepare User Code and Data
+    const uint8_t user_code[] = {
+        0xB8, 0x01, 0x00, 0x00, 0x00,    // mov eax, 1          
+        0xBB, 0x01, 0x00, 0x00, 0x00,    // mov ebx, 1          
+        0xB9, 0x00, 0x00, 0x00, 0x00,    // mov ecx, <PLACEHOLDER>
+        0xBA, 0x0F, 0x00, 0x00, 0x00,    // mov edx, 15         
+        0xCD, 0x67,                      // int 0x67            
+        0xEB, 0xE6                       // jmp short -16       
+    };
+    const char msg[] = "Hello from user\n"; 
+    const size_t code_len = sizeof(user_code);
+    const size_t msg_len = sizeof(msg) - 1;
+
+    // Calculate Addresses
+    const uint32_t code_vaddr = PROCESS_HEAP_START;
+    const uint32_t msg_vaddr = code_vaddr + (uint32_t)code_len;
+
+    // 3. Consolidate into a Single Payload
+    // This prevents the VMM from overwriting the page when loading the second part.
+    size_t total_payload_len = code_len + msg_len;
+    uint8_t* payload = (uint8_t*)kmalloc(total_payload_len);
+    if (!payload) {
+        printf("[PANIC] Failed to allocate payload buffer\n");
+        return;
+    }
+
+    // Copy code and message into the contiguous kernel buffer
+    memcpy(payload, user_code, code_len);
+    memcpy(payload + code_len, msg, msg_len);
+
+    // Patch the mov ecx instruction (at offset 11) with the message's virtual address
+    *(uint32_t*)&payload[11] = msg_vaddr;
+
+    printf("[DEBUG] Memory Layout:\n");
+    printf("        Code VAddr: 0x%x\n", code_vaddr);
+    printf("        Msg  VAddr: 0x%x\n", msg_vaddr);
+    printf("        Patched Addr in Payload: 0x%x\n", *(uint32_t*)&payload[11]);
+
+    // 4. Load into Address Space in One Shot
+    printf("[PROCESS] Loading consolidated payload into PD 0x%x...\n", proc->pd_phys);
+    
+    // We load the entire blob starting at the code's base address
+    if (!process_load_user_memory(proc, code_vaddr, payload, total_payload_len)) {
+        printf("[PANIC] Failed to load user memory!\n");
+        kfree((uintptr_t)payload);
+        return;
+    }
+    
+    // Free the temporary kernel buffer
+    kfree((uintptr_t)payload);
+    printf("[DEBUG] User memory loaded successfully.\n");
+
+    // 5. Handover to Scheduler
+    printf("[SCHEDULER] Adding process to queue...\n");
+    scheduler_add_process(proc);
+
+    // Initialize timer for preemptive multitasking
+    clock_init(100); 
+
+    printf("[KERNEL] Starting Scheduler. Goodbye Kernel Main!\n");
+    scheduler_start();
 }

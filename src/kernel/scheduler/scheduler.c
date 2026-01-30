@@ -2,6 +2,7 @@
 #include <lib/stdio.h>
 #include <lib/string.h>
 #include <arch/i686/gdt.h>
+#include <kernel/heap_allocator.h>
 
 #define PROCESS_MAX_TICKS 10
 
@@ -22,13 +23,15 @@ void context_switch(process_t* from, process_t* to, interrupt_frame_t* frame) {
     current_process = to;
     current_process_ticks = 0;
     vmm_switch_address_space(to->pd_phys);
+
+    // set kernel stack
+    tss_set_stack(to->kernel_stack_top);
     
     // Load incoming process state
     memcpy(frame, to->context, sizeof(interrupt_frame_t));
 }
 
 void schedule(interrupt_frame_t* frame) {
-    printf(".");
     if (state == SCHED_STATE_STARTING) {
         state = SCHED_STATE_RUNNING;
         memcpy(frame, current_process->context, sizeof(interrupt_frame_t));
@@ -54,14 +57,11 @@ void schedule(interrupt_frame_t* frame) {
 }
 
 void scheduler_init() {
-    printf("Starting scheduler...\n");
     if (state != SCHED_STATE_READY)
         return;
 
-    printf("Starting scheduler...\n");
     isr_register_handler(irq_to_vector(0), (interrupt_handler_t)schedule);
     state = SCHED_STATE_STARTING;
-    printf("Starting scheduler...\n");
 
     for (;;)
         asm volatile("hlt");
@@ -82,7 +82,6 @@ void scheduler_add_process(process_t* proc) {
 }
 
 void scheduler_start() {
-    printf("Starting scheduler...\n");
     if (!process_list) {
         printf("scheduler_start: no processes to run\n");
         return;
@@ -98,6 +97,13 @@ void scheduler_start() {
 void process_init(process_t* p, void (*entry)(void)) {
     // To set const value
     *(uint32_t*)&p->pid = next_pid++;
+
+    uint32_t kstack = kmalloc(PAGE_SIZE);
+    if (!kstack) {
+        printf("Failed to allocate kernel stack\n");
+        return;
+    }
+    p->kernel_stack_top = kstack + PAGE_SIZE;
 
     p->pd_phys = vmm_create_address_space();
     // Allocate user stack - allocate while switched to the new address space
@@ -118,17 +124,16 @@ void process_init(process_t* p, void (*entry)(void)) {
     // Set up initial context
     interrupt_frame_t* frame = (interrupt_frame_t*)kmalloc(sizeof(interrupt_frame_t));
     memset(frame, 0, sizeof(*frame));
+    
     frame->eip = (uint32_t)entry;
-    frame->cs = GDT_USER_CODE_SEL;
-    frame->eflags = 0x202;
-    frame->ss = frame->ds = frame->es = frame->fs = frame->gs = GDT_USER_DATA_SEL;
+    frame->cs = GDT_USER_CODE_SEL; // Ensure this is 0x1B (Index 3 | Ring 3)
+    frame->eflags = 0x202;         // Interrupts Enabled
+    
+    // Data segments
+    frame->ss = frame->ds = frame->es = frame->fs = frame->gs = GDT_USER_DATA_SEL; // Ensure 0x23
 
-    frame->eax = frame->ecx = frame->edx = frame->ebx = 0;
-    frame->esp = PROCESS_STACK_TOP;
-    frame->ebp = frame->esi = frame->edi = 0;
-    frame->int_no = 0;
-    frame->err_code = 0;
-
+    frame->esp = PROCESS_STACK_TOP; // User ESP
+    
     p->context = frame;
     p->next = NULL;
 }
@@ -188,6 +193,7 @@ void process_exit(process_t* proc, interrupt_frame_t* frame) {
     // Free resources
     vmm_destroy_address_space(proc->pd_phys);
     kfree((uintptr_t)proc);
+    kfree((uintptr_t)proc->kernel_stack_top);
 
     // If current process is exiting, force immediate reschedule
     if (proc == current_process) {

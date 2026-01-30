@@ -113,3 +113,7 @@ void gdt_init(void) {
     /* load TSS selector (assembly helper in lgdt.s) */
     tss_load(GDT_TSS_SEL);
 }
+
+void tss_set_stack(uint32_t esp0) {
+    tss.esp0 = esp0;
+}
