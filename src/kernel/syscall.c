@@ -21,6 +21,8 @@ static int  syscall_exit(interrupt_frame_t* frame) {
 
 static int  syscall_write(interrupt_frame_t* frame) {
     // Ignore file descriptor for now (in ebx)
+
+    printf("Got Syscall\n");
     for (size_t i = 0; i < frame->edx; i++) {
         putc(((const char*)frame->ecx)[i]);
     }
@@ -38,6 +40,7 @@ static syscall_func_t sys_table[SYSCALL_COUNT] = {
 // SYSCALL HANDLER
 
 void syscall_handler(interrupt_frame_t* frame) {
+    printf("syscall: %d\n", frame->eax);
     uint32_t num = frame->eax;
     int ret = 1;
 

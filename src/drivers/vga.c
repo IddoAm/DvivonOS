@@ -9,7 +9,7 @@
 
 #define VGA_WIDTH 80
 #define VGA_HEIGHT 25
-#define VGA_MEMORY_HIGHER_HALF 0xC03FF000
+#define VGA_MEMORY_HIGHER_HALF 0xC00B8000
 
 void vga_clear(void);
 
