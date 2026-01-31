@@ -2,11 +2,14 @@
 #include <lib/stdio.h>
 #include <lib/string.h>
 #include <arch/i686/gdt.h>
+#include <kernel/heap_allocator.h>
 
 #define PROCESS_MAX_TICKS 10
 
-static volatile process_t* current_process = NULL;
-static volatile process_t* process_list = NULL;
+static uint32_t next_pid = 1;
+
+static process_t* current_process = NULL;
+static process_t* process_list = NULL;
 static volatile uint32_t current_process_ticks = 0;
 static scheduler_state state = SCHED_STATE_OFF;
 
@@ -19,7 +22,10 @@ void context_switch(process_t* from, process_t* to, interrupt_frame_t* frame) {
     // Switch to new process
     current_process = to;
     current_process_ticks = 0;
-    vmm_switch_address_space(to->heap->page_dir);
+    vmm_switch_address_space(to->pd_phys);
+
+    // set kernel stack
+    tss_set_stack(to->kernel_stack_top);
     
     // Load incoming process state
     memcpy(frame, to->context, sizeof(interrupt_frame_t));
@@ -84,7 +90,7 @@ void scheduler_start() {
     current_process = (process_t*)process_list;
     state = SCHED_STATE_READY;
 
-    vmm_switch_address_space(current_process->heap->page_dir);
+    vmm_switch_address_space(current_process->pd_phys);
     scheduler_init();
 }
 
@@ -92,35 +98,72 @@ void process_init(process_t* p, void (*entry)(void)) {
     // To set const value
     *(uint32_t*)&p->pid = next_pid++;
 
-    page_directory_t* pd = vmm_create_address_space();
-    p->heap = heap_create(PROCESS_HEAP_START, 8, 1024, pd);
+    uint32_t kstack = kmalloc(PAGE_SIZE);
+    if (!kstack) {
+        printf("Failed to allocate kernel stack\n");
+        return;
+    }
+    p->kernel_stack_top = kstack + PAGE_SIZE;
 
-    // Allocate user stack
+    p->pd_phys = vmm_create_address_space();
+    // Allocate user stack - allocate while switched to the new address space
+    uint32_t old_cr3 = vmm_read_cr3();
+    vmm_switch_address_space(p->pd_phys);
+
     for (int i = 0; i < USER_STACK_PAGES; i++) {
         uint32_t stack_page_vaddr = PROCESS_STACK_TOP - (i + 1) * PAGE_SIZE;
-        if (vmm_alloc_page_at(pd, stack_page_vaddr, PAGE_PRESENT | PAGE_RW | PAGE_USER) != 0) {
+        if (vmm_alloc_user_page_at(stack_page_vaddr) == false) {
             printf("process_init: failed to allocate user stack page\n");
+            // restore old cr3 before returning
+            vmm_switch_address_space(old_cr3);
             return;
         }
     }
-
+    // restore original address space
+    vmm_switch_address_space(old_cr3);
     // Set up initial context
-    interrupt_frame_t* frame = kmalloc(sizeof(interrupt_frame_t));
+    interrupt_frame_t* frame = (interrupt_frame_t*)kmalloc(sizeof(interrupt_frame_t));
     memset(frame, 0, sizeof(*frame));
-
+    
     frame->eip = (uint32_t)entry;
-    frame->cs = GDT_USER_CODE_SEL;
-    frame->eflags = 0x202;
-    frame->ss = frame->ds = frame->es = frame->fs = frame->gs = GDT_USER_DATA_SEL;
+    frame->cs = GDT_USER_CODE_SEL; // Ensure this is 0x1B (Index 3 | Ring 3)
+    frame->eflags = 0x202;         // Interrupts Enabled
+    
+    // Data segments
+    frame->ss = frame->ds = frame->es = frame->fs = frame->gs = GDT_USER_DATA_SEL; // Ensure 0x23
 
-    frame->eax = frame->ecx = frame->edx = frame->ebx = 0;
-    frame->esp = PROCESS_STACK_TOP;
-    frame->ebp = frame->esi = frame->edi = 0;
-    frame->int_no = 0;
-    frame->err_code = 0;
-
+    frame->esp = PROCESS_STACK_TOP; // User ESP
+    
     p->context = frame;
     p->next = NULL;
+}
+
+// Load a blob (code/data) into a process virtual address.
+// Returns true on success.
+bool process_load_user_memory(process_t* p, uint32_t vaddr, const void* src, size_t len) {
+    if (!p || !src || len == 0) return false;
+
+    uint32_t old_cr3 = vmm_read_cr3();
+    vmm_switch_address_space(p->pd_phys);
+
+    uint32_t start = vaddr & ~(PAGE_SIZE - 1);
+    uint32_t end = (vaddr + len + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+
+    // allocate pages covering the range
+    for (uint32_t a = start; a < end; a += PAGE_SIZE) {
+        if (!vmm_alloc_user_page_at(a)) {
+            // restore and fail
+            vmm_switch_address_space(old_cr3);
+            return false;
+        }
+    }
+
+    // copy the data into user virtual memory (we are currently in that PD)
+    memcpy((void*)vaddr, src, len);
+
+    // restore original address space
+    vmm_switch_address_space(old_cr3);
+    return true;
 }
 
 // Must be called within an interrupt context
@@ -145,14 +188,13 @@ void process_exit(process_t* proc, interrupt_frame_t* frame) {
     }
     
     // Free context
-    kfree(proc->context);
-    
+    kfree((uintptr_t)proc->context);
+
     // Free resources
-    // IMPORTANT TODO:
-    // AFTER VMM REFACTOR DESTROY PROCESS ADDRESS SPACE HERE
-    
-    kfree(proc);
-    
+    vmm_destroy_address_space(proc->pd_phys);
+    kfree((uintptr_t)proc);
+    kfree((uintptr_t)proc->kernel_stack_top);
+
     // If current process is exiting, force immediate reschedule
     if (proc == current_process) {
         process_t* next = (process_t*)process_list;
