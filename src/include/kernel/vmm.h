@@ -2,6 +2,7 @@
 #define VMM_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 /* ---- Page flags ---- */
 #define PAGE_PRESENT     0x001
