@@ -18,6 +18,9 @@
 
 #include <arch/i686/pic.h>
 #include <prog/terminal.h>
+#include <fs/vfs/filesystem.h>
+#include <fs/vfs/mount.h>
+#include <drivers/disk/ata.h>
 
 void shell_loop2() {
     printf("tests");
@@ -47,6 +50,12 @@ void shell_loop3() {
         for (volatile int i = 0; i < 1000000; i++)
             ;
     }
+}
+
+void start_the_fs(void){
+    filesystem_init();
+    mount_init();
+    ata_init();
 }
 
 void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
@@ -95,6 +104,9 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
     pic_clear_mask(1);
 
     clock_init(100); // 100 Hz
+
+    // Initialize filesystem components
+    start_the_fs();
 
     // print all the colors
     printf("%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo\n", STD_COLOR_BLACK, STD_COLOR_BLUE,

@@ -17,7 +17,7 @@ struct superblock {
     const char *type;               /* Filesystem type (e.g., "ext2") */
     
     /* Root directory inode */
-    struct inode *root;
+    inode_t *root;
     
     /* Filesystem-specific data */
     void *fs_data;                  /* Pointer to filesystem-specific superblock data */
@@ -29,9 +29,9 @@ struct superblock {
 /* Superblock operations - filesystem-specific methods */
 typedef struct superblock_ops {
     /* Inode operations */
-    struct inode *(*read_inode)(superblock_t *sb, ino_t ino);
-    int (*write_inode)(struct inode *inode);
-    int (*delete_inode)(struct inode *inode);
+    inode_t *(*read_inode)(superblock_t *sb, ino_t ino);
+    int (*write_inode)(inode_t *inode);
+    int (*delete_inode)(inode_t *inode);
     
     /* Filesystem operations */
     int (*sync)(superblock_t *sb);
