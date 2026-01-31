@@ -100,12 +100,12 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
 
     // 2. Prepare User Code and Data
     const uint8_t user_code[] = {
-        0xB8, 0x01, 0x00, 0x00, 0x00,    // mov eax, 1          
-        0xBB, 0x01, 0x00, 0x00, 0x00,    // mov ebx, 1          
+        0xB8, 0x01, 0x00, 0x00, 0x00,    // mov eax, 1
+        0xBB, 0x01, 0x00, 0x00, 0x00,    // mov ebx, 1
         0xB9, 0x00, 0x00, 0x00, 0x00,    // mov ecx, <PLACEHOLDER>
-        0xBA, 0x0F, 0x00, 0x00, 0x00,    // mov edx, 15         
-        0xCD, 0x67,                      // int 0x67            
-        0xEB, 0xE6                       // jmp short -16       
+        0xBA, 0x10, 0x00, 0x00, 0x00,    // mov edx, 16 (Fixed length to include \n)
+        0xCD, 0x67,                      // int 0x67
+        0xEB, 0xE8                       // jmp short -24 (Fixed offset)
     };
     const char msg[] = "Hello from user\n"; 
     const size_t code_len = sizeof(user_code);
