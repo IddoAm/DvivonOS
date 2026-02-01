@@ -303,6 +303,8 @@ void keyboard_callback() {
 
 bool keyboard_read(key_event* event) {
     if (buffer_head != buffer_tail) {
+bool keyboard_read(key_event* event) {
+    if (buffer_head != buffer_tail) {
         *event = keyboard_buffer[buffer_tail];
         buffer_tail = (buffer_tail + 1) % KEYBOARD_BUFFER_SIZE;
         return true;

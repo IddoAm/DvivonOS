@@ -1,6 +1,9 @@
 
 #include <kernel/heap-allocator.h>
 
+static free_block_header_t* free_list_head = NULL;
+static uint32_t heap_max = KHEAP_START;
+
 static inline block_header_t* get_footer(block_header_t* header) {
     return (block_header_t*)((uintptr_t)header + GET_SIZE(header) - sizeof(block_header_t));
 }
@@ -49,10 +52,7 @@ static inline void coalesce_blocks(free_block_header_t* a, free_block_header_t* 
 
 static inline void coalesce_with_next(free_block_header_t* block) {
     uintptr_t next_addr = (uintptr_t)block + GET_SIZE(block);
-
-    // Check if next block is within heap bounds
-    if (next_addr >= heap_end)
-        return;
+    if (next_addr >  heap_max || next_addr >= (uintptr_t)MEMORY_SPACE) return;
 
     block_header_t* next_header = (block_header_t*)next_addr;
     if (IS_FREE(next_header)) {
@@ -65,9 +65,7 @@ static inline void coalesce_with_prev(free_block_header_t* block) {
         return;
 
     block_header_t* prev_footer = (block_header_t*)((uintptr_t)block - sizeof(block_header_t));
-
-    if ((uintptr_t)prev_footer < heap_start || !IS_FREE(prev_footer))
-        return;
+    if (prev_footer <= KHEAP_START || !IS_FREE(prev_footer)) return;
 
     free_block_header_t* prev_block =
         (free_block_header_t*)((uintptr_t)block - GET_SIZE(prev_footer));
@@ -92,32 +90,18 @@ static free_block_header_t* split_block(free_block_header_t* block, uint32_t wan
 }
 
 static uintptr_t allocate_new_heap_page(void) {
-    uintptr_t page = kernel_vmm_alloc_page();
-    if (!page)
-        return 0;
+    uint32_t addr = heap_max;
+    uintptr_t page = vmm_alloc_kernel_page_at(addr);
+    if (!page) return 0;
 
-    // Update heap boundaries
-    if (heap_start == 0) {
-        heap_start = page;
-        heap_end = page + PAGE_SIZE;
-    } else {
-        if (page < heap_start)
-            heap_start = page;
-        if (page + PAGE_SIZE > heap_end)
-            heap_end = page + PAGE_SIZE;
-    }
-
-    heap_pages++;
-    free_block_header_t* block = create_free_block(page, PAGE_SIZE);
+    heap_max += PAGE_SIZE;
+    free_block_header_t* block = create_free_block(addr, PAGE_SIZE);
     add_free_block(block);
     coalesce_with_prev(block);
     return page;
 }
 
 uintptr_t kmalloc(uint32_t size) {
-    if (size == 0)
-        return 0;
-
     size = ALIGN_UP(size);
     size += sizeof(block_header_t);
     if (size < sizeof(free_block_header_t))
@@ -127,7 +111,6 @@ uintptr_t kmalloc(uint32_t size) {
         if (!allocate_new_heap_page())
             return 0;
     }
-
     free_block_header_t* cur = free_list_head;
     while (cur) {
         uint32_t current_size = GET_SIZE(cur);

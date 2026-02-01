@@ -10,6 +10,9 @@
 
 #define BLOCK_FREE 0x1
 
+#define KHEAP_START 0xC1000000
+#define KHEAP_END 0xC2000000
+
 typedef struct block_header {
     uint32_t size_and_flags;
 } block_header_t;
@@ -26,9 +29,6 @@ typedef struct free_block_header {
 #define IS_FREE(b) ((b)->size_and_flags & BLOCK_FREE)
 #define SET_FREE(b) ((b)->size_and_flags |= BLOCK_FREE)
 #define CLEAR_FREE(b) ((b)->size_and_flags &= ~BLOCK_FREE)
-
-static free_block_header_t* free_list_head = NULL;
-static uint32_t heap_pages = 0;
 static uintptr_t heap_start = 0;
 static uintptr_t heap_end = 0;
 

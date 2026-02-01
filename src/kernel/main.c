@@ -18,6 +18,9 @@
 
 #include <arch/i686/pic.h>
 #include <prog/terminal.h>
+#include <kernel/syscall.h>
+#include <lib/string.h>
+
 
 void shell_loop2() {
     printf("tests");
@@ -49,6 +52,40 @@ void shell_loop3() {
     }
 }
 
+
+
+void user_space_loop() {
+    while (true) {
+
+        printf("Hello from User Space");
+        for (volatile int i = 0; i < 10000000; i++);
+    }
+}
+
+void dump_page_directory() {
+    uint32_t* pd = (uint32_t*)0xFFFFF000;
+    
+    printf("--- Page Directory Dump ---\n");
+    for (int i = 0; i < 768; i++) {
+        // Only print entries that are "Present" (bit 0 is set)
+        if (pd[i] & 1) {
+            printf("PDE [%d]: 0x%x + +", i, pd[i]);
+        }
+    }
+}
+
+static int do_syscall_write(int fd, const char* buf, size_t len) {
+    uint32_t ret;
+    __asm__ volatile(
+        "int $0x67"
+        : "=a"(ret)
+        : "a"((uint32_t)SYSCALL_WRITE), "b"((uint32_t)fd), "c"((uint32_t)buf), "d"((uint32_t)len)
+        : "memory"
+    );
+    return (int)ret;
+}
+
+
 void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
     loader_init(magic, virt_addr, phys_addr);
     gdt_init();
@@ -71,6 +108,7 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
     }
 
     pmm_init(loader_get_memory_map(), loader_get_memory_map_length());
+    syscall_init();
 
     printf("%oTesting kernel heap allocator:\n", STD_COLOR_LIGHT_BLUE);
 
@@ -95,6 +133,81 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
     pic_clear_mask(1);
 
     clock_init(100); // 100 Hz
+// --- Process Creation ---
+    printf("\n[PROCESS] Creating User Process...\n");
+    process_t* proc = (process_t*)kmalloc(sizeof(process_t));
+    
+    if (!proc) {
+        printf("[PANIC] Failed to allocate process struct\n");
+        return;
+    }
+    memset(proc, 0, sizeof(*proc));
+
+    // 1. Initialize Process Structure
+    // Note: process_init now allocates a per-process kernel stack and updates TSS
+    printf("[DEBUG] Calling process_init with Entry Point: 0x%x\n", PROCESS_HEAP_START);
+    process_init(proc, (void*)PROCESS_HEAP_START);
+
+    if (!proc->context) {
+        printf("[PANIC] process_init failed to create context!\n");
+        return;
+    }
+
+    // 2. Prepare User Code and Data
+    const uint8_t user_code[] = {
+        0xB8, 0x01, 0x00, 0x00, 0x00,    // mov eax, 1
+        0xBB, 0x01, 0x00, 0x00, 0x00,    // mov ebx, 1
+        0xB9, 0x00, 0x00, 0x00, 0x00,    // mov ecx, <PLACEHOLDER>
+        0xBA, 0x10, 0x00, 0x00, 0x00,    // mov edx, 16 (Fixed length to include \n)
+        0xCD, 0x67,                      // int 0x67
+        0xEB, 0xE8                       // jmp short -24 (Fixed offset)
+    };
+    const char msg[] = "Hello from user\n"; 
+    const size_t code_len = sizeof(user_code);
+    const size_t msg_len = sizeof(msg) - 1;
+
+    // Calculate Addresses
+    const uint32_t code_vaddr = PROCESS_HEAP_START;
+    const uint32_t msg_vaddr = code_vaddr + (uint32_t)code_len;
+
+    // 3. Consolidate into a Single Payload
+    // This prevents the VMM from overwriting the page when loading the second part.
+    size_t total_payload_len = code_len + msg_len;
+    uint8_t* payload = (uint8_t*)kmalloc(total_payload_len);
+    if (!payload) {
+        printf("[PANIC] Failed to allocate payload buffer\n");
+        return;
+    }
+
+    // Copy code and message into the contiguous kernel buffer
+    memcpy(payload, user_code, code_len);
+    memcpy(payload + code_len, msg, msg_len);
+
+    // Patch the mov ecx instruction (at offset 11) with the message's virtual address
+    *(uint32_t*)&payload[11] = msg_vaddr;
+
+    printf("[DEBUG] Memory Layout:\n");
+    printf("        Code VAddr: 0x%x\n", code_vaddr);
+    printf("        Msg  VAddr: 0x%x\n", msg_vaddr);
+    printf("        Patched Addr in Payload: 0x%x\n", *(uint32_t*)&payload[11]);
+
+    // 4. Load into Address Space in One Shot
+    printf("[PROCESS] Loading consolidated payload into PD 0x%x...\n", proc->pd_phys);
+    
+    // We load the entire blob starting at the code's base address
+    if (!process_load_user_memory(proc, code_vaddr, payload, total_payload_len)) {
+        printf("[PANIC] Failed to load user memory!\n");
+        kfree((uintptr_t)payload);
+        return;
+    }
+    
+    // Free the temporary kernel buffer
+    kfree((uintptr_t)payload);
+    printf("[DEBUG] User memory loaded successfully.\n");
+
+    // 5. Handover to Scheduler
+    printf("[SCHEDULER] Adding process to queue...\n");
+    scheduler_add_process(proc);
 
     // print all the colors
     printf("%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo\n", STD_COLOR_BLACK, STD_COLOR_BLUE,
@@ -102,6 +215,8 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
            STD_COLOR_LIGHT_GREY, STD_COLOR_DARK_GREY, STD_COLOR_LIGHT_BLUE, STD_COLOR_LIGHT_GREEN,
            STD_COLOR_LIGHT_CYAN, STD_COLOR_LIGHT_RED, STD_COLOR_LIGHT_MAGENTA,
            STD_COLOR_LIGHT_BROWN, STD_COLOR_WHITE);
+
+           scheduler_start();
     // Main Loop
     key_event event;
     while (true) {

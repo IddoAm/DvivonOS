@@ -142,6 +142,7 @@ isr\n:
     ISR_NOERR 29
     ISR_NOERR 30      /* (Security Exception on newer CPUs: can have err code) */
     ISR_NOERR 31
+    ISR_NOERR 103 # Syscall 0x67 in hex
 
 /* ------------- IRQ (PIC 0..15 → vectors 0x20..0x2F) ------------------ */
 
@@ -169,3 +170,6 @@ irq\n:
     IRQ 13, 0x2D
     IRQ 14, 0x2E
     IRQ 15, 0x2F
+
+
+
