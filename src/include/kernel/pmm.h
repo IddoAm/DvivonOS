@@ -8,7 +8,7 @@ extern uint32_t _pmm_bitmap_start[];
 
 /* Bitmap constants */
 #define BITMAP_ENTRY_BITS 32
-#define BITMAP_ALL_BITS_SET 0xFFFFFFFFU  /* All 32 bits set (used = 1) */
+#define BITMAP_ALL_BITS_SET 0xFFFFFFFFU   /* All 32 bits set (used = 1) */
 #define BITMAP_WORD_INDEX_SHIFT 5         /* log2(32) for dividing by 32 */
 #define BITMAP_BIT_MASK 0x1F              /* 31 = 0x1F, for bit % 32 */
 

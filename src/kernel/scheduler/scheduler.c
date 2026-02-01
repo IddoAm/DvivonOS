@@ -2,7 +2,7 @@
 #include <lib/stdio.h>
 #include <lib/string.h>
 #include <arch/i686/gdt.h>
-#include <kernel/heap_allocator.h>
+#include <kernel/heap-allocator.h>
 
 #define PROCESS_MAX_TICKS 10
 

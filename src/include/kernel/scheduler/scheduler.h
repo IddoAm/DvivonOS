@@ -16,7 +16,7 @@ typedef enum {
     SCHED_STATE_READY = 1,
     SCHED_STATE_STARTING = 2,
     SCHED_STATE_RUNNING = 3,
-} scheduler_state;
+} scheduler_state; //TODO: think if it need to end with _t
 
 typedef struct process {
     const uint32_t pid;
