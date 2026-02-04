@@ -12,13 +12,11 @@
 #define VGA_HEIGHT 25
 #define VGA_MEMORY_HIGHER_HALF 0xC00B8000
 
-#define VGA_MEMORY 0xC03FF000
-
 size_t vga_row;
 size_t vga_column;
 uint8_t vga_color;
 vga_EOF_func vga_EOF_handler;
-uint16_t* vga_buffer = (uint16_t*)VGA_MEMORY;
+uint16_t* vga_buffer = (uint16_t*)VGA_MEMORY_HIGHER_HALF;
 
 static inline uint8_t _vga_entry_color(enum vga_color fg, enum vga_color bg) {
     return fg | bg << 4;
