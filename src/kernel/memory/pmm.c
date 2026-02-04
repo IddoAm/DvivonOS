@@ -51,7 +51,7 @@ void pmm_init(const multiboot_mmap_entry_t* mmap, uint32_t length) {
     usable_end_words = (usable_end_words + BITMAP_ENTRY_BITS - 1) / BITMAP_ENTRY_BITS;
 
     // Reserve kernel memory - convert virtual addresses to physical
-    uintptr_t kernel_start_phys = (uintptr_t)_kernel_start - KERNEL_HIGHER_HALF;
+    uintptr_t kernel_start_phys = (uintptr_t)_kernel_start;
     uintptr_t kernel_end_phys = (uintptr_t)_kernel_end - KERNEL_HIGHER_HALF;
 
     // Reserve first PAGE_TABLE_COUNT pages (for page tables)

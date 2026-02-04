@@ -21,8 +21,6 @@ static int  syscall_exit(interrupt_frame_t* frame) {
 
 static int  syscall_write(interrupt_frame_t* frame) {
     // Ignore file descriptor for now (in ebx)
-
-    printf("Got Syscall\n");
     for (size_t i = 0; i < frame->edx; i++) {
         putc(((const char*)frame->ecx)[i]);
     }
