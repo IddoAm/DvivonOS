@@ -49,9 +49,6 @@ typedef struct free_list {
 extern uint32_t _page_directory_start[];
 extern uint32_t _page_tables_start[];
 
-/* Initialize kernel page directory object */
-void vmm_init(void);
-
 /* Context switching */
 void     vmm_write_cr3(uint32_t phys_addr);
 uint32_t vmm_read_cr3(void);

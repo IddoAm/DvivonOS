@@ -66,10 +66,6 @@ static free_list_node_t* free_list_pop(free_list_t* list) {
 
 /* ---------------- vmm init / switch ---------------- */
 
-void vmm_init(void) {
-    // Nothing needed here for now
-}
-
 void vmm_switch_address_space(uint32_t phys_addr) {
     if (!phys_addr)
         return;
@@ -254,39 +250,30 @@ void vmm_free_user_page(uint32_t vaddr) {
 uint32_t vmm_create_address_space(void) {
     uint32_t new_pd_phys = pmm_alloc_page();
     if (!new_pd_phys) return 0;
-    printf("goo");
     // 1. Map the new PD into our "Scratch" slot (1022)
     // We don't use vmm_set_pde_at with PD_SCRATCH_WINDOW because that macro 
     // is the TARGET address, not the VADDR we are mapping.
     uint32_t* current_pd = (uint32_t*)PD_WINDOW;
-    printf("goo");
     // Per your instructions: Kernel allocations use the GLOBAL flag (bit 8)
     current_pd[1022] = new_pd_phys | PAGE_PRESENT | PAGE_RW | PAGE_GLOBAL;
-    printf("goo");
     // 2. Flush the TLB so the CPU sees the new mapping at 0xFFFFE000
     vmm_invlpg((void*)PD_SCRATCH_WINDOW);
-    printf("goo");
     uint32_t* new_pd = (uint32_t*)PD_SCRATCH_WINDOW;
 
     // 3. Clear the user-space part (0-767) to ensure it's empty
     for (uint32_t i = 0; i < 768; i++) {
         new_pd[i] = 0;
     }
-    printf("goo");
     // 4. Copy kernel PDEs (768-1021)
     for (uint32_t i = 768; i < 1022; i++) {
         new_pd[i] = current_pd[i];
     }
-    printf("goo");
     // 5. Setup self-reference for the NEW PD at its own index 1023
     // This must also be GLOBAL as it's a kernel-level structural mapping.
     new_pd[1023] = new_pd_phys | PAGE_PRESENT | PAGE_RW | PAGE_GLOBAL;
-    printf("goo");
     // 6. Clean up: Unmap from scratch slot (optional but cleaner)
     current_pd[1022] = 0;
-    printf("goo");
     vmm_invlpg((void*)PD_SCRATCH_WINDOW);
-    printf("goo");
     return new_pd_phys;
 }
 
