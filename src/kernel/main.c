@@ -18,40 +18,9 @@
 
 #include <arch/i686/pic.h>
 #include <prog/terminal.h>
+#include <prog/shell-loops.h>
 #include <kernel/syscall.h>
 #include <lib/string.h>
-
-
-void shell_loop2() {
-    printf("tests");
-    while (true) {
-
-        printf("#");
-        for (volatile int i = 0; i < 1000000; i++)
-            ;
-    }
-}
-
-void shell_loop1() {
-    printf("tests");
-    while (true) {
-
-        printf("-");
-        for (volatile int i = 0; i < 1000000; i++)
-            ;
-    }
-}
-
-void shell_loop3() {
-    printf("tests");
-    while (true) {
-
-        printf("+");
-        for (volatile int i = 0; i < 1000000; i++)
-            ;
-    }
-}
-
 
 
 void user_space_loop() {
@@ -85,15 +54,24 @@ static int do_syscall_write(int fd, const char* buf, size_t len) {
     return (int)ret;
 }
 
-
-void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
+// a helper function to initialize kernel subsystems
+static void _init(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr)
+{
     loader_init(magic, virt_addr, phys_addr);
     gdt_init();
     idt_init();
     terminal_initialize();
+    init_keyboard();
+    init_memory_management();
+    init_hardware();
 
+}
+
+void init_keyboard() {
     isr_register_handler(irq_to_vector(1), keyboard_callback);
+}
 
+void print_memory_regions() {
     printf("%omaping all the memory regions.\n  %o1. %ofor usable, \n  %o2. %ofor reserved\n",
            STD_COLOR_LIGHT_BLUE, 1, STD_COLOR_LIGHT_BLUE, 2, STD_COLOR_LIGHT_BLUE);
 
@@ -106,10 +84,14 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
 
         mmap = (multiboot_mmap_entry_t*)((uintptr_t)mmap + mmap->size + sizeof(mmap->size));
     }
+}
 
+void init_memory_management() {
     pmm_init(loader_get_memory_map(), loader_get_memory_map_length());
     syscall_init();
+}
 
+void test_heap_allocator() {
     printf("%oTesting kernel heap allocator:\n", STD_COLOR_LIGHT_BLUE);
 
     uint32_t* allocation = (uint32_t*)kmalloc(sizeof(uint32_t));
@@ -129,16 +111,19 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
     printf("Check that %d is still at %x\n", *allocation, allocation);
     kfree((uintptr_t)allocation);
     kfree((uintptr_t)allocation2);
+}
 
+void init_hardware() {
     pic_clear_mask(1);
-
     clock_init(100); // 100 Hz
-// --- Process Creation ---
+}
+
+void create_and_schedule_user_process() {
     printf("\n[PROCESS] Creating User Process...\n");
     process_t* proc = (process_t*)kmalloc(sizeof(process_t));
     
     if (!proc) {
-        printf("[PANIC] Failed to allocate process struct\n");
+        printf("%o[PANIC] Failed to allocate process struct\n", STD_COLOR_LIGHT_RED);
         return;
     }
     memset(proc, 0, sizeof(*proc));
@@ -208,16 +193,25 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
     // 5. Handover to Scheduler
     printf("[SCHEDULER] Adding process to queue...\n");
     scheduler_add_process(proc);
+}
 
-    // print all the colors
+void print_all_colors_test() {
     printf("%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo%oo\n", STD_COLOR_BLACK, STD_COLOR_BLUE,
            STD_COLOR_GREEN, STD_COLOR_CYAN, STD_COLOR_RED, STD_COLOR_MAGENTA, STD_COLOR_BROWN,
            STD_COLOR_LIGHT_GREY, STD_COLOR_DARK_GREY, STD_COLOR_LIGHT_BLUE, STD_COLOR_LIGHT_GREEN,
            STD_COLOR_LIGHT_CYAN, STD_COLOR_LIGHT_RED, STD_COLOR_LIGHT_MAGENTA,
            STD_COLOR_LIGHT_BROWN, STD_COLOR_WHITE);
+}
 
-           scheduler_start();
-    // Main Loop
+void _run_tests()
+{
+    print_memory_regions();
+    test_heap_allocator();
+    print_all_colors_test();
+
+}
+
+void main_loop() {
     key_event event;
     while (true) {
         if (keyboard_read(&event)) {
@@ -225,4 +219,15 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
         }
         __asm__ volatile("hlt");
     }
+}
+
+void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
+
+    _init(magic, virt_addr, phys_addr);
+    _run_tests();
+
+    create_and_schedule_user_process();
+    scheduler_start();
+
+    main_loop();
 }
