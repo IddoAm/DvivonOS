@@ -1,5 +1,6 @@
 
 #include <arch/i686/idt.h>
+
 #include <arch/i686/io.h>
 #include <arch/i686/gdt.h>
 #include <arch/i686/pic.h>
@@ -42,7 +43,7 @@ typedef void (*isr_t)(void);
 
 extern isr_t isr0, isr1, isr2, isr3, isr4, isr5, isr6, isr7, isr8, isr9, isr10, isr11, isr12, isr13,
     isr14, isr15, isr16, isr17, isr18, isr19, isr20, isr21, isr22, isr23, isr24, isr25, isr26,
-    isr27, isr28, isr29, isr30, isr31 /*isr103*/;
+    isr27, isr28, isr29, isr30, isr31, isr103;
 
 extern isr_t irq0, irq1, irq2, irq3, irq4, irq5, irq6, irq7, irq8, irq9, irq10, irq11, irq12, irq13,
     irq14, irq15;
@@ -55,7 +56,7 @@ static isr_t* const exceptions[32] = {
 static isr_t* const irqs[16] = {&irq0, &irq1, &irq2,  &irq3,  &irq4,  &irq5,  &irq6,  &irq7,
                                 &irq8, &irq9, &irq10, &irq11, &irq12, &irq13, &irq14, &irq15};
 
-// static isr_t* const syscall = &isr103;
+static isr_t* const syscall = &isr103;
 
 void idt_init(void) {
     pic_disable_all();
@@ -75,7 +76,7 @@ void idt_init(void) {
                      IDT_INTERRUPT_GATE);
     }
 
-    // idt_set_gate(SYSCALL_INT, (uint32_t)syscall, GDT_KERNEL_CODE_SEL, IDT_TRAP_GATE_USER);
+    idt_set_gate(SYSCALL_INT, (uint32_t)syscall, GDT_KERNEL_CODE_SEL, IDT_TRAP_GATE_USER);
 
     idt_flush(&_idtr);
     __asm__ volatile("sti");
@@ -85,9 +86,9 @@ void isr_common_handler(interrupt_frame_t* frame) {
     
     // Check if there are handlers registered for this interrupt
     for (int i = 0; i < MAX_HANDELERS_PER_INTURRUPT; i++) {
-        uintptr_t interrupt_handler_ptr = (uintptr_t)isr_table_start[frame->int_no * MAX_HANDELERS_PER_INTURRUPT + i];
-        if (interrupt_handler_ptr != 0) {
-            ((interrupt_handler_t)interrupt_handler_ptr)(frame);
+        uintptr_t interrupt_function_ptr = (uintptr_t)isr_table_start[frame->int_no * MAX_HANDELERS_PER_INTURRUPT + i];
+        if (interrupt_function_ptr != 0) {
+            ((interrupt_handler_t)interrupt_function_ptr)(frame);
         }
     }
 

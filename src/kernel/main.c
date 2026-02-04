@@ -54,18 +54,6 @@ static int do_syscall_write(int fd, const char* buf, size_t len) {
     return (int)ret;
 }
 
-// a helper function to initialize kernel subsystems
-static void _init(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr)
-{
-    loader_init(magic, virt_addr, phys_addr);
-    gdt_init();
-    idt_init();
-    terminal_initialize();
-    init_keyboard();
-    init_memory_management();
-    init_hardware();
-
-}
 
 void init_keyboard() {
     isr_register_handler(irq_to_vector(1), keyboard_callback);
@@ -219,6 +207,19 @@ void main_loop() {
         }
         __asm__ volatile("hlt");
     }
+}
+
+// a helper function to initialize kernel subsystems
+static void _init(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr)
+{
+    loader_init(magic, virt_addr, phys_addr);
+    gdt_init();
+    idt_init();
+    terminal_initialize();
+    init_keyboard();
+    init_memory_management();
+    init_hardware();
+
 }
 
 void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
