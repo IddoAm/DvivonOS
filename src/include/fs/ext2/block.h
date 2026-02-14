@@ -125,6 +125,42 @@ int ext2_read_indirect_block(block_device_t *dev, uint32_t block, uint32_t *buf,
 int ext2_write_indirect_block(block_device_t *dev, uint32_t block, const uint32_t *buf, uint32_t count);
 
 /**
+ * ext2_resolve_block_num - Resolve logical file block to physical disk block
+ * @dev: Block device
+ * @inode: On-disk ext2 inode
+ * @logical_block: Logical block index within the file
+ * @block_size: Filesystem block size in bytes
+ *
+ * Input:  A logical block offset inside a file, plus the disk inode that
+ *         holds the block map, and the device to read indirect blocks from.
+ * Output: Physical disk block number, or 0 if the block is a hole / sparse.
+ *
+ * Handles direct (0-11), singly indirect (12), doubly indirect (13),
+ * and triply indirect (14) block addressing.
+ */
+uint32_t ext2_resolve_block_num(block_device_t *dev, const ext2_inode_t *inode,
+                                uint32_t logical_block, uint32_t block_size);
+
+/**
+ * ext2_assign_block_num - Assign a physical block to a logical file position
+ * @sb: VFS superblock (used for block allocation)
+ * @dev: Block device
+ * @inode: On-disk ext2 inode (modified in place)
+ * @logical_block: Logical block index within the file
+ * @phys_block: Physical block number to assign
+ * @block_size: Filesystem block size in bytes
+ *
+ * Input:  A logical file block position, the physical block to map it to,
+ *         and the device/superblock context.
+ * Output: 0 on success, -1 on failure.
+ *
+ * Allocates indirect blocks on the fly as required.
+ */
+int ext2_assign_block_num(superblock_t *sb, block_device_t *dev,
+                          ext2_inode_t *inode, uint32_t logical_block,
+                          uint32_t phys_block, uint32_t block_size);
+
+/**
  * ext2_truncate_inode - Truncate inode to new size
  * @sb: Superblock
  * @inode: Ext2 inode to truncate

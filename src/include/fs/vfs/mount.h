@@ -70,4 +70,12 @@ int mount_init(void);
  */
 mount_t *get_mount(dev_t dev);
 
+/**
+ * get_root_mount - Return the root (first) mount
+ *
+ * Input:  None
+ * Output: Pointer to the root mount_t, or NULL if nothing is mounted.
+ */
+mount_t *get_root_mount(void);
+
 #endif /* FS_VFS_MOUNT_H */

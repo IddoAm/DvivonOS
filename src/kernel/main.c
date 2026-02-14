@@ -63,9 +63,9 @@ void init_keyboard() {
 }
 
 void start_the_fs(void){
+    ata_init();
     filesystem_init();
     mount_init();
-    ata_init();
 }
 
 void print_memory_regions() {
@@ -228,7 +228,7 @@ static void _init(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr)
     init_keyboard();
     init_memory_management();
     init_hardware();
-    // start_the_fs();
+    start_the_fs();
 
 }
 

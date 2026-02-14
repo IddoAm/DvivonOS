@@ -151,6 +151,7 @@ typedef struct ext2_dir_entry {
 typedef struct ext2_fs_data {
     ext2_superblock_t *sb;             /* Copy of superblock */
     ext2_group_desc_t *group_desc;     /* Block group descriptors */
+    block_device_t *dev;               /* Underlying block device */
     uint32_t groups_count;             /* Number of block groups */
     uint32_t block_size;               /* Block size in bytes */
     uint32_t inodes_per_block;         /* Inodes per block */
@@ -163,5 +164,17 @@ typedef struct ext2_inode_data {
     uint32_t block_group;              /* Block group number */
     uint32_t index_in_group;           /* Index within block group */
 } ext2_inode_data_t;
+
+/* ---- Operations tables (defined in ext2_ops.c) ---- */
+extern const file_ops_t ext2_file_ops;
+extern const superblock_ops_t ext2_sb_ops;
+
+/**
+ * ext2_init - Register the ext2 filesystem type with the VFS
+ *
+ * Input:  None
+ * Output: 0 on success, negative error on failure.
+ */
+int ext2_init(void);
 
 #endif /* FS_EXT2_EXT2_H */

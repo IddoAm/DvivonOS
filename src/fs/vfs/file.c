@@ -1,130 +1,111 @@
+/*
+ * vfs/file.c – Open-file management.
+ *
+ * file_open() resolves a path to an inode and wraps it in a file_t.
+ * file_read / file_write / file_seek / file_stat operate through
+ * the inode's file-operation pointers.
+ */
+
 #include <fs/vfs/file.h>
 #include <fs/vfs/inode.h>
-#include <lib/stdio.h>
+#include <fs/vfs/dentry.h>
 #include <kernel/heap-allocator.h>
+#include <lib/stdio.h>
+#include <lib/string.h>
 
-/**
- * file_open - Open a file
- * @path: Path to file
- * @flags: Open flags (FILE_FLAG_READ, FILE_FLAG_WRITE, etc.)
- *
- * Opens a file at the given path with the specified flags.
- * Returns pointer to file structure, or NULL on error.
+/*
+ * Open a file at the given absolute path.
+ * Performs a path_lookup, allocates a file_t, and attaches the inode.
  */
 file_t *file_open(const char *path, uint32_t flags)
 {
-    /* TODO: Implement file open
-     * 1. Look up path to get inode
-     * 2. Allocate file structure
-     * 3. Initialize file with inode and flags
-     */
-    return NULL;
+    if (!path) return NULL;
+
+    inode_t *inode = path_lookup(path);
+    if (!inode) return NULL;
+
+    file_t *file = (file_t *)kmalloc(sizeof(file_t));
+    if (!file) {
+        inode_put(inode);
+        return NULL;
+    }
+
+    file->inode     = inode;
+    file->flags     = flags;
+    file->offset    = 0;
+    file->ref_count = 1;
+    return file;
 }
 
-/**
- * file_close - Close a file
- * @file: File to close
- *
- * Closes the file and releases resources.
- * Returns 0 on success, or error code.
+/*
+ * Close an open file and release its inode reference.
  */
 int file_close(file_t *file)
 {
-    if (!file)
-        return -1;
-
-    if (file->inode)
-        inode_put(file->inode);
-
+    if (!file) return -1;
+    if (file->inode) inode_put(file->inode);
     kfree((uintptr_t)file);
     return 0;
 }
 
-/**
- * file_read - Read from file
- * @file: File to read from
- * @buf: Buffer to read into
- * @count: Number of bytes to read
- *
- * Reads data from current file offset into buffer.
- * Advances file offset on success.
- * Returns number of bytes read, or error code.
+/*
+ * Read count bytes from the file's current offset into buf.
+ * Advances the offset on success.
  */
 int file_read(file_t *file, void *buf, size_t count)
 {
-    if (!file || !file->inode)
-        return -1;
+    if (!file || !file->inode) return -1;
 
-    /* Use inode file operations if available */
     if (file->inode->f_ops && file->inode->f_ops->read) {
-        int ret = file->inode->f_ops->read(file->inode, (char *)buf, count, file->offset);
+        int ret = file->inode->f_ops->read(
+            file->inode, (char *)buf, count, file->offset);
         if (ret > 0)
             file->offset += ret;
         return ret;
     }
-
     return -1;
 }
 
-/**
- * file_write - Write to file
- * @file: File to write to
- * @buf: Buffer to write from
- * @count: Number of bytes to write
- *
- * Writes data from buffer at current file offset (or end if append mode).
- * Advances file offset on success.
- * Returns number of bytes written, or error code.
+/*
+ * Write count bytes from buf at the file's current offset
+ * (or at end-of-file if FILE_FLAG_APPEND is set).
+ * Advances the offset on success.
  */
 int file_write(file_t *file, const void *buf, size_t count)
 {
-    if (!file || !file->inode)
-        return -1;
+    if (!file || !file->inode) return -1;
 
-    /* Use inode file operations if available */
+    if (file->flags & FILE_FLAG_APPEND)
+        file->offset = file->inode->size;
+
     if (file->inode->f_ops && file->inode->f_ops->write) {
-        int ret = file->inode->f_ops->write(file->inode, (const char *)buf, count, file->offset);
+        int ret = file->inode->f_ops->write(
+            file->inode, (const char *)buf, count, file->offset);
         if (ret > 0)
             file->offset += ret;
         return ret;
     }
-
     return -1;
 }
 
-/**
- * file_seek - Seek to position in file
- * @file: File to seek
- * @offset: Offset to seek to
- *
- * Sets the file offset for next read/write.
- * Returns new offset, or error code.
+/*
+ * Seek to an absolute byte offset within the file.
  */
 int file_seek(file_t *file, uint32_t offset)
 {
-    if (!file)
-        return -1;
-
+    if (!file) return -1;
     file->offset = offset;
-    return offset;
+    return (int)offset;
 }
 
-/**
- * file_stat - Get file statistics
- * @file: File to stat
- * @stat: Pointer to stat structure to fill
- *
- * Gets file metadata (size, permissions, timestamps, etc.).
- * Returns 0 on success, or error code.
+/*
+ * Fill a fs_stat_t structure with the file's metadata.
  */
 int file_stat(file_t *file, fs_stat_t *stat)
 {
-    if (!file || !file->inode)
-        return -1;
+    if (!file || !file->inode) return -1;
 
-    /* Use inode file operations if available */
     if (file->inode->f_ops && file->inode->f_ops->stat)
         return file->inode->f_ops->stat(file->inode, stat);
-
     return -1;
 }

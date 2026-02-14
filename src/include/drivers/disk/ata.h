@@ -158,4 +158,21 @@ int ata_wait_ready(int timeout_ms);
  */
 void ata_select_drive(int drive);
 
+/* Forward declaration */
+struct block_device;
+
+/**
+ * ata_create_block_device - Create an ATA-backed block device
+ *
+ * Input:  None (uses primary master drive)
+ * Output: Pointer to a registered block_device_t backed by ATA PIO,
+ *         or NULL on failure.
+ *
+ * Creates a block_device_t whose read/write ops translate
+ * block-level I/O into ATA sector-level I/O.  The device's
+ * block_size starts at 512 (sector size) and may be updated
+ * by the filesystem layer after mount.
+ */
+struct block_device *ata_create_block_device(void);
+
 #endif /* DRIVERS_DISK_ATA_H */

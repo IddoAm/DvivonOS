@@ -96,4 +96,24 @@ int ext2_sync(superblock_t *sb);
  */
 int ext2_statfs(superblock_t *sb, void *stat);
 
+/**
+ * ext2_flush_group_desc - Write a single group descriptor back to disk
+ * @sb: VFS superblock
+ * @group: Block group index to flush
+ *
+ * Input:  The VFS superblock (whose fs_data contains the in-memory
+ *         group descriptor array) and the group index.
+ * Output: 0 on success, negative error on failure.
+ */
+int ext2_flush_group_desc(superblock_t *sb, uint32_t group);
+
+/**
+ * ext2_flush_superblock - Write the in-memory superblock back to disk
+ * @sb: VFS superblock
+ *
+ * Input:  The VFS superblock whose fs_data contains the ext2 superblock.
+ * Output: 0 on success, negative error on failure.
+ */
+int ext2_flush_superblock(superblock_t *sb);
+
 #endif /* FS_EXT2_SUPERBLOCK_H */

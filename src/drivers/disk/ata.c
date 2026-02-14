@@ -1,8 +1,11 @@
 #include <drivers/disk/ata.h>
+#include <drivers/block_device.h>
 #include <arch/i686/io.h>
 #include <arch/i686/idt.h>
 #include <arch/i686/pic.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>
 
 /* ========================================================================
  * Internal State
@@ -391,4 +394,93 @@ int ata_identify_drive(int drive, uint16_t *buffer) {
     ata_read_pio_data(buffer);
 
     return ATA_ERROR_NONE;
+}
+
+/* ========================================================================
+ * Block Device Adapter
+ *
+ * Wraps ATA PIO sector I/O behind the generic block_device_ops_t
+ * interface.  The device's block_size field controls how many 512-byte
+ * sectors are read per "block" (e.g. block_size=1024 => 2 sectors/block).
+ * ======================================================================== */
+
+/* Static instance – only one primary-master device is supported. */
+static block_device_t ata_block_dev;
+
+/**
+ * ata_blk_read_block – Read one logical block via ATA PIO.
+ * Translates the block number to an LBA using dev->block_size.
+ */
+static int ata_blk_read_block(block_device_t *dev, uint32_t block, void *buf)
+{
+    uint32_t sectors_per_block = dev->block_size / ATA_SECTOR_SIZE;
+    uint32_t lba = block * sectors_per_block;
+    return ata_read_sectors(lba, sectors_per_block, (uint16_t *)buf);
+}
+
+/**
+ * ata_blk_write_block – Write one logical block via ATA PIO.
+ */
+static int ata_blk_write_block(block_device_t *dev, uint32_t block, const void *buf)
+{
+    uint32_t sectors_per_block = dev->block_size / ATA_SECTOR_SIZE;
+    uint32_t lba = block * sectors_per_block;
+    return ata_write_sectors(lba, sectors_per_block, (const uint16_t *)buf);
+}
+
+/**
+ * ata_blk_read_blocks – Read multiple consecutive logical blocks.
+ */
+static int ata_blk_read_blocks(block_device_t *dev, uint32_t start,
+                               uint32_t count, void *buf)
+{
+    uint32_t sectors_per_block = dev->block_size / ATA_SECTOR_SIZE;
+    uint32_t lba = start * sectors_per_block;
+    uint32_t total_sectors = count * sectors_per_block;
+    return ata_read_sectors(lba, total_sectors, (uint16_t *)buf);
+}
+
+/**
+ * ata_blk_write_blocks – Write multiple consecutive logical blocks.
+ */
+static int ata_blk_write_blocks(block_device_t *dev, uint32_t start,
+                                uint32_t count, const void *buf)
+{
+    uint32_t sectors_per_block = dev->block_size / ATA_SECTOR_SIZE;
+    uint32_t lba = start * sectors_per_block;
+    uint32_t total_sectors = count * sectors_per_block;
+    return ata_write_sectors(lba, total_sectors, (const uint16_t *)buf);
+}
+
+static const block_device_ops_t ata_blk_ops = {
+    .read_block   = ata_blk_read_block,
+    .write_block  = ata_blk_write_block,
+    .read_blocks  = ata_blk_read_blocks,
+    .write_blocks = ata_blk_write_blocks,
+    .flush        = NULL,
+    .ioctl        = NULL,
+    .release      = NULL,
+};
+
+/**
+ * ata_create_block_device – Build and register the primary-master
+ * ATA drive as a generic block device.
+ */
+block_device_t *ata_create_block_device(void)
+{
+    ata_block_dev.major      = 3;
+    ata_block_dev.minor      = 0;
+    ata_block_dev.block_size = ATA_SECTOR_SIZE;   /* updated by FS mount */
+    ata_block_dev.capacity   = 0;
+    ata_block_dev.base_port  = ATA_DATA_PORT;
+    ata_block_dev.drive_type = 0;                 /* master */
+    ata_block_dev.is_exists  = true;
+    ata_block_dev.ops        = &ata_blk_ops;
+    ata_block_dev.name       = "hda";
+    ata_block_dev.driver_data = NULL;
+
+    if (block_device_register(&ata_block_dev) != 0)
+        return NULL;
+
+    return &ata_block_dev;
 }

@@ -16,7 +16,7 @@
 .equ KERNEL_TEMP_BUFFER, 0x10000   # Temporary buffer for loading
 .equ MMAP_BUFFER, mmap_buffer      # Buffer for E820 Memory Map (placed after multiboot_info_32)
 .equ KERNEL_START_SECTOR, 4        
-.equ KERNEL_SECTORS, 64           
+.equ KERNEL_SECTORS, 120          
 
 # GDT constants
 .equ GDT_NULL, 0x00
