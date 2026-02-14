@@ -1,7 +1,7 @@
 #include "fs/vfs/mount.h"
 #include "fs/vfs/superblock.h"
 #include "drivers/block_device.h"
-#include <stdlib.h>
+#include <lib/stdio.h>
 
 /* TODO: Include necessary headers */
 

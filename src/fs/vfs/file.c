@@ -1,6 +1,7 @@
-#include "fs/file.h"
-#include "fs/inode.h"
-#include <stdlib.h>
+#include <fs/vfs/file.h>
+#include <fs/vfs/inode.h>
+#include <lib/stdio.h>
+#include <kernel/heap-allocator.h>
 
 /**
  * file_open - Open a file
@@ -35,7 +36,7 @@ int file_close(file_t *file)
     if (file->inode)
         inode_put(file->inode);
 
-    free(file);
+    kfree((uintptr_t)file);
     return 0;
 }
 

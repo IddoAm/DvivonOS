@@ -1,8 +1,8 @@
-#include "fs/ext2/ext2.h"
-#include "fs/ext2/directory.h"
-#include "fs/ext2/block.h"
-#include <stdlib.h>
-#include <string.h>
+#include <fs/ext2/ext2.h>
+#include <fs/ext2/directory.h>
+#include <fs/ext2/block.h>
+#include <lib/stdio.h>
+#include <lib/string.h>
 
 /* TODO: Include necessary headers */
 

@@ -2,7 +2,7 @@
 #define FS_INODE_H
 
 #include <stdint.h>
-#include "fs/types.h"
+#include <fs/types.h>
 
 /* Forward declarations */
 typedef struct inode inode_t;

@@ -1,6 +1,7 @@
-#include "fs/inode.h"
-#include "fs/superblock.h"
-#include <stdlib.h>
+#include <fs/vfs/inode.h>
+#include <fs/vfs/superblock.h>
+#include <lib/stdio.h>
+#include <kernel/heap-allocator.h>
 
 /**
  * inode_new - Create a new inode
@@ -12,7 +13,7 @@
  */
 inode_t *inode_new(superblock_t *sb, ino_t ino)
 {
-    inode_t *inode = (inode_t *)malloc(sizeof(inode_t));
+    inode_t *inode = (inode_t *)kmalloc(sizeof(inode_t));
     if (!inode)
         return NULL;
 
@@ -76,7 +77,7 @@ void inode_free(inode_t *inode)
         inode->f_ops->release(inode);
 
     if (inode->fs_data)
-        free(inode->fs_data);
+        kfree((uintptr_t)inode->fs_data);
 
-    free(inode);
+    kfree((uintptr_t)inode);
 }

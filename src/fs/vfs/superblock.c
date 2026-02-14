@@ -1,7 +1,8 @@
-#include "fs/superblock.h"
-#include "fs/inode.h"
-#include <stdlib.h>
-#include <string.h>
+#include <fs/vfs/superblock.h>
+#include <fs/vfs/inode.h>
+#include <lib/stdio.h>
+#include <lib/string.h>
+#include <kernel/heap-allocator.h>
 
 /**
  * superblock_new - Create a new superblock
@@ -13,7 +14,7 @@
  */
 superblock_t *superblock_new(dev_t dev, const char *type)
 {
-    superblock_t *sb = (superblock_t *)malloc(sizeof(superblock_t));
+    superblock_t *sb = (superblock_t *)kmalloc(sizeof(superblock_t));
     if (!sb)
         return NULL;
 
@@ -23,9 +24,9 @@ superblock_t *superblock_new(dev_t dev, const char *type)
     sb->flags = 0;
 
     /* Copy filesystem type */
-    sb->type = (const char *)malloc(strlen(type) + 1);
+    sb->type = (const char *)kmalloc(strlen(type) + 1);
     if (!sb->type) {
-        free(sb);
+        kfree((uintptr_t)sb);
         return NULL;
     }
     strcpy((char *)sb->type, type);
@@ -55,10 +56,10 @@ void superblock_free(superblock_t *sb)
         inode_put(sb->root);
 
     if (sb->fs_data)
-        free(sb->fs_data);
+        kfree((uintptr_t)sb->fs_data);
 
     if (sb->type)
-        free((void *)sb->type);
+        kfree((uintptr_t)sb->type);
 
-    free(sb);
+    kfree((uintptr_t)sb);
 }

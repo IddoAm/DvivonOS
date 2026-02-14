@@ -1,7 +1,8 @@
-#include "fs/dentry.h"
-#include "fs/inode.h"
-#include <stdlib.h>
-#include <string.h>
+#include <fs/vfs/dentry.h>
+#include <fs/vfs/inode.h>
+#include <lib/stdio.h>
+#include <lib/string.h>
+#include <kernel/heap-allocator.h>
 
 /**
  * dentry_new - Create a new directory entry
@@ -14,13 +15,13 @@
  */
 dentry_t *dentry_new(const char *name, size_t name_len, inode_t *inode)
 {
-    dentry_t *dentry = (dentry_t *)malloc(sizeof(dentry_t));
+    dentry_t *dentry = (dentry_t *)kmalloc(sizeof(dentry_t));
     if (!dentry)
         return NULL;
 
-    char *name_copy = (char *)malloc(name_len + 1);
+    char *name_copy = (char *)kmalloc(name_len + 1);
     if (!name_copy) {
-        free(dentry);
+        kfree((uintptr_t)dentry);
         return NULL;
     }
 
@@ -79,12 +80,12 @@ void dentry_free(dentry_t *dentry)
         inode_put(dentry->inode);
 
     if (dentry->fs_data)
-        free(dentry->fs_data);
+        kfree((uintptr_t)dentry->fs_data);
 
     if (dentry->name)
-        free((void *)dentry->name);
+        kfree((uintptr_t)dentry->name);
 
-    free(dentry);
+    kfree((uintptr_t)dentry);
 }
 
 /**

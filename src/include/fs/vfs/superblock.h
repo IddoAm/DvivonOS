@@ -2,9 +2,10 @@
 #define FS_SUPERBLOCK_H
 
 #include <stdint.h>
-#include "fs/types.h"
+#include <fs/types.h>
 
 /* Forward declarations */
+typedef struct inode inode_t;
 typedef struct superblock superblock_t;
 typedef struct superblock_ops superblock_ops_t;
 

@@ -1,12 +1,19 @@
-#include "fs/ext2/ext2.h"
-#include "fs/ext2/inode.h"
-#include "fs/ext2/block.h"
-#include "fs/ext2/directory.h"
-#include "fs/ext2/superblock.h"
-#include <stdlib.h>
+#include <fs/ext2/ext2.h>
+#include <fs/ext2/inode.h>
+#include <fs/ext2/block.h>
+#include <fs/ext2/directory.h>
+#include <fs/ext2/superblock.h>
+#include <lib/stdio.h>
 #include <fs/vfs/filesystem.h>
 
 /* TODO: Include necessary headers */
+void ext2_release(inode_t *inode);
+int ext2_chmod(inode_t *inode, uint32_t mode);
+int ext2_stat(inode_t *inode, fs_stat_t *stat);
+int ext2_write(inode_t *inode, const char *buf, size_t count, uint32_t offset);
+int ext2_read(inode_t *inode, char *buf, size_t count, uint32_t offset);
+
+
 
 /* Ext2 superblock operations */
 static const superblock_ops_t ext2_sb_ops = {

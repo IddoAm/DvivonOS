@@ -1,5 +1,5 @@
 #include "drivers/block_device.h"
-#include <stdlib.h>
+#include <lib/string.h>
 
 /* Simple block device registry */
 #define MAX_BLOCK_DEVICES 16

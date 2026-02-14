@@ -1,7 +1,7 @@
-#include <stdio.h>
-#include <string.h>
-#include "fs/vfs/mount.h"
-#include "drivers/block_device.h"
+#include <lib/stdio.h>
+#include <lib/string.h>
+#include <fs/vfs/mount.h>
+#include <drivers/block_device.h>
 #include <fs/vfs/inode.h>
 
 /* TODO: Include necessary headers */
