@@ -2,6 +2,7 @@
 #define DRIVERS_BLOCK_DEVICE_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 /* Forward declarations */
 typedef struct block_device block_device_t;
@@ -11,10 +12,13 @@ typedef struct block_device_ops block_device_ops_t;
 struct block_device {
     uint32_t major;                 /* Major device number */
     uint32_t minor;                 /* Minor device number */
-    const char *name;               /* Device name (e.g., "hda", "sda") */
     uint32_t block_size;            /* Block size in bytes */
     uint32_t capacity;              /* Total blocks on device */
+    uint16_t base_port;             /* Base I/O port for device (if applicable) */
+    uint8_t  drive_type;            /* Drive type (e.g., 0 for Master, 1 for Slave) */
+    bool     is_exists;             /* Does this device exist? */
     const block_device_ops_t *ops;  /* Device operations */
+    const char *name;               /* Device name (e.g., "hda", "sda") */
     void *driver_data;              /* Driver-specific data */
 };
 
