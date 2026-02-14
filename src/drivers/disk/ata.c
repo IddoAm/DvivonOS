@@ -7,6 +7,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+
 /* ========================================================================
  * Internal State
  * ======================================================================== */
@@ -103,7 +104,9 @@ static void ata_prepare_irq(void) {
  */
 static void ata_wait_irq(void) {
     while (!ata_irq_fired)
+    {
         __asm__ volatile("hlt");
+    }
 }
 
 /* ========================================================================
@@ -201,7 +204,8 @@ int ata_init(void) {
     isr_register_handler(irq_to_vector(ATA_IRQ_SECONDARY),
                          ata_secondary_irq_handler);
 
-    /* Unmask ATA IRQs on the PIC */
+    /* Unmask ATA IRQs on the PIC.*/
+    pic_clear_mask(2);
     pic_clear_mask(ATA_IRQ_PRIMARY);
     pic_clear_mask(ATA_IRQ_SECONDARY);
 
@@ -267,24 +271,24 @@ int ata_read_sectors(uint32_t lba, uint32_t count, uint16_t *buffer) {
               ? ATA_MAX_SECTORS_PER_CMD : count;
 
         ata_select_drive(0);
-
         if (ata_wait_ready(1000) != ATA_ERROR_NONE)
-            return ATA_ERROR_TIMEOUT;
-
+        return ATA_ERROR_TIMEOUT;
+    
         ata_setup_lba(lba, (uint8_t)chunk);
-
+        
         /* Arm the flag before the command so we catch the first IRQ */
         ata_prepare_irq();
-        outb(ATA_COMMAND_PORT, ATA_CMD_READ_SECTORS);
 
+        outb(ATA_COMMAND_PORT, ATA_CMD_READ_SECTORS);
+        
         for (i = 0; i < chunk; i++) {
             ata_wait_irq();
             ata_read_pio_data(buffer);
             buffer += ATA_SECTOR_WORDS;
-
+            
             /* Arm for the next sector's IRQ (skip after the last one) */
             if (i + 1 < chunk)
-                ata_prepare_irq();
+            ata_prepare_irq();
         }
 
         count -= chunk;
@@ -463,11 +467,37 @@ static const block_device_ops_t ata_blk_ops = {
 };
 
 /**
- * ata_create_block_device – Build and register the primary-master
- * ATA drive as a generic block device.
+ * ata_drive_exists – Quick probe: write known values to the sector-count
+ * and LBA-low registers, then read them back.  If the bus is floating
+ * (no drive), the read returns 0xFF instead of the written value.
+ * Also rejects status == 0x00 (disconnected) and 0xFF (floating bus).
+ */
+static int ata_drive_exists(void)
+{
+    ata_select_drive(0);
+
+    uint8_t status = inb(ATA_STATUS_PORT);
+    if (status == 0x00 || status == 0xFF)
+        return 0;
+
+    /* Write / read-back test on scratch registers */
+    outb(ATA_SECTOR_COUNT, 0x55);
+    outb(ATA_LBA_LOW,      0xAA);
+    if (inb(ATA_SECTOR_COUNT) != 0x55 || inb(ATA_LBA_LOW) != 0xAA)
+        return 0;
+
+    return 1;   /* drive present */
+}
+
+/**
+ * ata_create_block_device – Probe for the primary-master ATA drive
+ * and, if one exists, build and register a generic block device.
  */
 block_device_t *ata_create_block_device(void)
 {
+    if (!ata_drive_exists())
+        return NULL;
+
     ata_block_dev.major      = 3;
     ata_block_dev.minor      = 0;
     ata_block_dev.block_size = ATA_SECTOR_SIZE;   /* updated by FS mount */

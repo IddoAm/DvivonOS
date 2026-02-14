@@ -10,6 +10,7 @@ USE_GRUB=0
 CLEAN=0
 GDB=0
 NO_CLOSE=0
+RESET_FS=0
 
 # Parse flags
 while (( "$#" )); do
@@ -30,13 +31,18 @@ while (( "$#" )); do
       CLEAN=1
       shift
       ;;
+    --reset-fs|-r)
+      RESET_FS=1
+      shift
+      ;;
     -h|--help)
       cat <<EOF
-Usage: $(basename "$0") [--grub] [--gdb|-g] [--no-close|-n] [--clean|-c]
+Usage: $(basename "$0") [--grub] [--gdb|-g] [--no-close|-n] [--clean|-c] [--reset-fs|-r]
   --grub        Use GRUB ISO as bootloader (default is custom bootloader)
   --gdb, -g     Start QEMU with GDB stub (-S -s)
   --no-close,-n Prevent QEMU from closing/rebooting (-no-reboot -no-shutdown)
   --clean, -c   Clean the build directory before building
+  --reset-fs,-r Delete and recreate the ext2 disk image (fresh filesystem)
 EOF
       exit 0
       ;;
@@ -60,6 +66,14 @@ fi
 if [ "$CLEAN" -eq 1 ]; then
   echo "[INFO] Cleaning build directory..."
   "$SCRIPT_DIR/clean.sh"
+fi
+
+if [ "$RESET_FS" -eq 1 ]; then
+  EXT2_DISK="$BUILD_DIR/ext2disk.img"
+  if [ -f "$EXT2_DISK" ]; then
+    rm -f "$EXT2_DISK"
+    echo "[INFO] Removed old ext2 disk image"
+  fi
 fi
 
 # Assemble QEMU args to forward

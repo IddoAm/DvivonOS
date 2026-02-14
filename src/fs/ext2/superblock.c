@@ -181,7 +181,7 @@ int ext2_fill_super(superblock_t *sb, block_device_t *dev)
     ext2_superblock_t *raw_sb =
         (ext2_superblock_t *)kmalloc(sizeof(ext2_superblock_t));
     if (!raw_sb) { kfree((uintptr_t)fs); return -1; }
-
+    
     /* --- read and validate superblock ------------------------------ */
     if (ext2_read_superblock(dev, raw_sb) != 0) {
         printf("[ext2] failed to read superblock\n");
@@ -238,8 +238,12 @@ int ext2_fill_super(superblock_t *sb, block_device_t *dev)
     sb->root = ext2_read_inode(sb, EXT2_ROOT_INO);
     if (!sb->root) {
         printf("[ext2] failed to read root inode\n");
+        /* Clear pointers so superblock_free() won't touch freed memory */
+        sb->fs_data = NULL;
+        sb->ops     = NULL;
         kfree((uintptr_t)fs->group_desc);
-        kfree((uintptr_t)raw_sb); kfree((uintptr_t)fs);
+        kfree((uintptr_t)raw_sb);
+        kfree((uintptr_t)fs);
         return -1;
     }
 
@@ -260,7 +264,7 @@ superblock_t *ext2_mount(block_device_t *dev)
 
     superblock_t *sb = superblock_new(dev->major, "ext2");
     if (!sb) return NULL;
-
+    
     if (ext2_fill_super(sb, dev) != 0) {
         superblock_free(sb);
         return NULL;

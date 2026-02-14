@@ -35,11 +35,22 @@ if [ ! -f "$BOOT_IMG" ]; then
 fi
 
 echo "[INFO] Build completed successfully!"
+
+# --- Create ext2 disk image for filesystem testing (once) ---
+EXT2_DISK="$BUILD_DIR/ext2disk.img"
+if [ ! -f "$EXT2_DISK" ]; then
+    echo "[INFO] Creating ext2 disk image (32 MB)..."
+    dd if=/dev/zero of="$EXT2_DISK" bs=1M count=32 status=none
+    mkfs.ext2 -F -q "$EXT2_DISK"
+    echo "[INFO] ext2 disk image created: $EXT2_DISK"
+fi
+
 echo "[INFO] Starting QEMU..."
 
-# Run QEMU with the bootloader, forwarding any extra args
+# Run QEMU with the bootloader + ext2 IDE disk, forwarding any extra args
 exec qemu-system-i386 \
     -drive file="$BOOT_IMG",format=raw,if=floppy \
+    -drive file="$EXT2_DISK",format=raw,if=ide \
     "${QEMU_ARGS[@]}"
 
 

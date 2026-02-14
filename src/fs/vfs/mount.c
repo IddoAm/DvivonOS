@@ -86,13 +86,13 @@ mount_t *mount(block_device_t *dev, const char *type, uint32_t flags)
         printf("[mount] unknown filesystem type '%s'\n", type);
         return NULL;
     }
-
+    
     superblock_t *sb = fs_type->mount(dev);
     if (!sb) {
         printf("[mount] filesystem mount failed for '%s'\n", type);
         return NULL;
     }
-
+    
     mount_t *mnt = mount_alloc();
     if (!mnt) {
         superblock_free(sb);

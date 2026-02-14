@@ -148,7 +148,9 @@ int ext2_add_dir_entry(inode_t *dir, const char *name,
     ext2_fs_data_t    *fs = (ext2_fs_data_t *)dir->sb->fs_data;
     ext2_inode_data_t *dei = (ext2_inode_data_t *)dir->fs_data;
     uint32_t bs   = fs->block_size;
-    uint8_t  nlen = (uint8_t)strlen(name);
+    uint32_t raw_len = strlen(name);
+    if (raw_len > 255) return -1;          /* ext2 name limit */
+    uint8_t  nlen = (uint8_t)raw_len;
     uint32_t need = ext2_dir_rec_len(nlen);
     uint32_t dir_blocks = (dir->size + bs - 1) / bs;
 
