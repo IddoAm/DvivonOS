@@ -46,7 +46,9 @@ EOF
   esac
 done
 
-# Determine script directory (project-root/scripts)
+# -------------------------------
+# Script paths
+# -------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/scripts"
 
 # Ensure required helper scripts exist

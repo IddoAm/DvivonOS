@@ -7,6 +7,11 @@
 #define INTURRUPT_COUNT 256
 #define MAX_HANDELERS_PER_INTURRUPT 4
 
+
+#define IDT_TRAP_GATE_USER      0xEF  // Present, DPL=3, 32-bit trap gate
+
+#define SYSCALL_INT 0x67
+
 // IDT configuration constants
 #define IDT_ALIGNMENT 0x10
 #define IDT_LIMIT_OFFSET 1

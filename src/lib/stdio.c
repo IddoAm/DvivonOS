@@ -27,7 +27,6 @@ stdio_interface_t* stdio_get_interface(void) {
 
 // Modular stdio functions
 void stdio_init(void) {
-    // if (!active_interface) active_interface = &vga_interface;
     if (active_interface.init) {
         active_interface.init();
     } else {

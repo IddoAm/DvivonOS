@@ -75,7 +75,6 @@ Source files must use **kebab-case** (lowercase with hyphens) or simple lowercas
 // ✅ Correct
 heap-allocator.c
 heap-allocator.c
-heapallocator.c
 idt.c
 main.c
 

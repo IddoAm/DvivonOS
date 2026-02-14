@@ -82,8 +82,17 @@ SECTIONS
     {
         . = ALIGN(PAGE);
         _page_tables_start = .;
-        . += 256 * PAGE;
+        . += 254 * PAGE;
         _page_tables_end = .;
+    }
+
+    /* Kernel scratch page for syscall copy-in (one page) */
+    .scratch (NOLOAD) : AT(KERNEL_PHYS + (ADDR(.scratch) - VMA_BASE))
+    {
+        . = ALIGN(PAGE);
+        __scratch_start = .;
+        . += PAGE;
+        __scratch_end = .;
     }
 
     _kernel_end = .;
