@@ -244,7 +244,7 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
     // scheduler_start();
     
     
-    // test_filesystem();
+    test_filesystem();
     fs_test_shell();
 
     main_loop();

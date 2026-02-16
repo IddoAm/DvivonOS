@@ -314,7 +314,6 @@ block_t ext2_alloc_block(superblock_t *sb)
                        g * fs->sb->s_blocks_per_group + i;
             }
         }
-        /* Group full despite counter – continue to next group */
     }
 
     kfree((uintptr_t)bitmap);

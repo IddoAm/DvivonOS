@@ -103,7 +103,8 @@ static uintptr_t allocate_new_heap_page(void) {
 
 uintptr_t kmalloc(uint32_t size) {
     size = ALIGN_UP(size);
-    size += sizeof(block_header_t);
+    // footer + header
+    size += 2 * sizeof(block_header_t);
     if (size < sizeof(free_block_header_t))
         size = sizeof(free_block_header_t);
 
