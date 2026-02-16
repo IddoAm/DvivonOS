@@ -11,7 +11,7 @@ Constants must use **UPPER_SNAKE_CASE** (all uppercase with underscores).
 // ✅ Correct
 #define MAX_BUFFER_SIZE 1024
 #define KERNEL_VIRT 0xC0000000
-#define INTURRUPT_COUNT 256
+#define INTERRUPT_COUNT 256
 
 // ❌ Incorrect
 #define maxBufferSize 1024
@@ -142,7 +142,7 @@ clang-tidy src/path/to/file.c --config-file=scripts/formats/.clang-tidy
 Before committing code, ensure:
 - [ ] Code is formatted with `clang-format`
 - [ ] All naming conventions are followed
-- [ ] No linter errors (`./scripts/lint.sh` passes)
+- [ ] No linter errors (`./scripts/formats/lint.sh` passes)
 - [ ] File names follow kebab-case convention
 
 ## Examples
