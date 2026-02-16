@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# set env
 source scripts/set_env.sh
 
-# Default behavior: build kernel with custom bootloader unless --grub is specified
+# -------------------------------
+# Defaults
+# -------------------------------
 BUILD_DIR=build
 USE_GRUB=0
 CLEAN=0
@@ -12,29 +13,16 @@ GDB=0
 NO_CLOSE=0
 RESET_FS=0
 
+# -------------------------------
 # Parse flags
+# -------------------------------
 while (( "$#" )); do
   case "$1" in
-    --gdb|-g)
-      GDB=1
-      shift
-      ;;
-    --no-close|-n)
-      NO_CLOSE=1
-      shift
-      ;;
-    --grub)
-      USE_GRUB=1
-      shift
-      ;;
-    --clean|-c)
-      CLEAN=1
-      shift
-      ;;
-    --reset-fs|-r)
-      RESET_FS=1
-      shift
-      ;;
+    --gdb|-g)      GDB=1;      shift ;;
+    --no-close|-n) NO_CLOSE=1; shift ;;
+    --grub)        USE_GRUB=1; shift ;;
+    --clean|-c)    CLEAN=1;    shift ;;
+    --reset-fs|-r) RESET_FS=1; shift ;;
     -h|--help)
       cat <<EOF
 Usage: $(basename "$0") [--grub] [--gdb|-g] [--no-close|-n] [--clean|-c] [--reset-fs|-r]
@@ -46,9 +34,7 @@ Usage: $(basename "$0") [--grub] [--gdb|-g] [--no-close|-n] [--clean|-c] [--rese
 EOF
       exit 0
       ;;
-    *)
-      shift
-      ;;
+    *) shift ;;
   esac
 done
 
@@ -57,44 +43,71 @@ done
 # -------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/scripts"
 
-# Ensure required helper scripts exist
-if [ ! -x "$SCRIPT_DIR/build_grub.sh" ] || [ ! -x "$SCRIPT_DIR/pack.sh" ] || [ ! -x "$SCRIPT_DIR/run_qemu.sh" ] || [ ! -x "$SCRIPT_DIR/build_bootloader.sh" ] || [ ! -x "$SCRIPT_DIR/create_rootfs.sh" ]; then
-  echo "[ERROR] Required scripts missing or not executable in: $SCRIPT_DIR" >&2
-  exit 1
-fi
+for s in build_grub.sh pack.sh run_qemu.sh build_bootloader.sh create_rootfs.sh clean.sh; do
+  if [ ! -x "$SCRIPT_DIR/$s" ]; then
+    echo "[ERROR] Required script missing or not executable: $SCRIPT_DIR/$s" >&2
+    exit 1
+  fi
+done
 
+# -------------------------------
+# 1. Clean
+# -------------------------------
 if [ "$CLEAN" -eq 1 ]; then
   echo "[INFO] Cleaning build directory..."
   "$SCRIPT_DIR/clean.sh"
 fi
 
+# -------------------------------
+# 2. Filesystem
+# -------------------------------
+EXT2_DISK="$BUILD_DIR/ext2disk.img"
+
 if [ "$RESET_FS" -eq 1 ]; then
   echo "[INFO] Rebuilding ext2 disk from root-fs/..."
   "$SCRIPT_DIR/create_rootfs.sh"
+elif [ ! -f "$EXT2_DISK" ]; then
+  echo "[INFO] ext2 disk not found, creating from root-fs/..."
+  "$SCRIPT_DIR/create_rootfs.sh"
 fi
 
-# Assemble QEMU args to forward
+# -------------------------------
+# 3. Build
+# -------------------------------
+if [ "$USE_GRUB" -eq 1 ]; then
+  echo "[INFO] Building kernel (GRUB)..."
+  "$SCRIPT_DIR/build_grub.sh"
+  echo "[INFO] Packing GRUB ISO..."
+  "$SCRIPT_DIR/pack.sh"
+else
+  echo "[INFO] Building bootloader + kernel..."
+  "$SCRIPT_DIR/build_bootloader.sh"
+fi
+
+# -------------------------------
+# 4. Assemble QEMU arguments
+# -------------------------------
 QEMU_ARGS=()
+
+if [ "$USE_GRUB" -eq 1 ]; then
+  QEMU_ARGS+=( -cdrom "$BUILD_DIR/myos.iso" )
+else
+  QEMU_ARGS+=( -drive "file=$BUILD_DIR/bootloader/complete.img,format=raw,if=floppy" )
+fi
+
+QEMU_ARGS+=( -drive "file=$EXT2_DISK,format=raw,if=ide" )
+
 if [ "$GDB" -eq 1 ]; then
   QEMU_ARGS+=( -S -s )
-  echo "gdb -x scripts/debug_memory.gdb"
+  echo "[INFO] GDB stub enabled — connect with: gdb -x scripts/debug_memory.gdb"
 fi
+
 if [ "$NO_CLOSE" -eq 1 ]; then
   QEMU_ARGS+=( -no-reboot -no-shutdown )
 fi
 
-if [ "$USE_GRUB" -eq 1 ]; then
-  echo "[INFO] Building kernel and creating GRUB ISO..."
-  "$SCRIPT_DIR/build_grub.sh"
-  "$SCRIPT_DIR/pack.sh"
-  echo "[INFO] Running QEMU (GRUB ISO)..."
-  "$SCRIPT_DIR/run_qemu.sh" "${QEMU_ARGS[@]}"
-else
-  echo "[INFO] Building kernel with custom bootloader..."
-  # build_bootloader.sh handles building the padded kernel and complete image
-  if [ ${#QEMU_ARGS[@]} -gt 0 ]; then
-    "$SCRIPT_DIR/build_bootloader.sh" --complete "${QEMU_ARGS[@]}"
-  else
-    "$SCRIPT_DIR/build_bootloader.sh" --complete
-  fi
-fi
+# -------------------------------
+# 5. Run
+# -------------------------------
+echo "[INFO] Starting QEMU..."
+"$SCRIPT_DIR/run_qemu.sh" "${QEMU_ARGS[@]}"

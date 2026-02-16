@@ -1,24 +1,20 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Always run from project root
+# Pack kernel into a GRUB-bootable ISO.
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR/.."
+ROOT_DIR="$SCRIPT_DIR/.."
+BUILD_DIR="$ROOT_DIR/build"
 
-# check if need to export path
-if [[ ":$PATH:" != *":$HOME/opt/cross/bin:"* ]]; then
-    export PATH="$HOME/opt/cross/bin:$PATH"
-fi
-BUILD_DIR=build
+source "$SCRIPT_DIR/set_env.sh"
 
-# Create build folder if missing
-mkdir -p $BUILD_DIR
-cd $BUILD_DIR
+cmake --build "$BUILD_DIR" --target iso -j
 
-# Configure CMake if not configured yet
-if [ ! -f Makefile ]; then
-    cmake ..
+ISO="$BUILD_DIR/myos.iso"
+if [ ! -f "$ISO" ]; then
+  echo "[ERROR] ISO not found at $ISO" >&2
+  exit 1
 fi
 
-# Build the iso image (also links kernel.elf)
-make iso
+echo "[INFO] ISO created: $ISO"

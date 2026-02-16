@@ -1,27 +1,15 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Always run from project root
+# Build kernel.elf for GRUB boot.
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR/.."
+ROOT_DIR="$SCRIPT_DIR/.."
+BUILD_DIR="$ROOT_DIR/build"
 
-# Ensure cross-compiler is in PATH
-if [[ ":$PATH:" != *":$HOME/opt/cross/bin:"* ]]; then
-	export PATH="$HOME/opt/cross/bin:$PATH"
-fi
+source "$SCRIPT_DIR/set_env.sh"
 
-BUILD_DIR=build
+cmake -S "$ROOT_DIR" -B "$BUILD_DIR"
+cmake --build "$BUILD_DIR" --target kernel.elf -j
 
-
-
-# Create build folder if missing
-mkdir -p "$BUILD_DIR"
-cd "$BUILD_DIR"
-
-# Configure CMake if not configured yet
-if [ ! -f Makefile ]; then
-	cmake ..
-fi
-
-# Build kernel.elf only with max speed
-make -j$(nproc) kernel.elf
+echo "[INFO] kernel.elf built successfully"

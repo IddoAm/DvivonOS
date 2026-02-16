@@ -1,11 +1,11 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Always run from project root
+# Remove all build artifacts.
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR/.."
+ROOT_DIR="$SCRIPT_DIR/.."
 
-# Remove build artifacts and ISO folder
-rm -rf build iso
+rm -rf "$ROOT_DIR/build" "$ROOT_DIR/iso"
 
-echo "Cleaned build/ and iso/ directories."
+echo "[INFO] Cleaned build/ and iso/ directories"
