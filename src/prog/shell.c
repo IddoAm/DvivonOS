@@ -2,7 +2,7 @@
  * prog/shell.c – Minimal interactive filesystem test shell.
  *
  * Provides ls / cat / touch / write / mkdir / rm / rmdir / stat / help / exit.
- * Uses keyboard_read() for input and printf() for output.
+ * Uses the lib/fs abstraction for all filesystem operations.
  * Also includes test_filesystem(), an automated smoke-test sequence.
  */
 
@@ -12,17 +12,8 @@
 
 #include <lib/stdio.h>
 #include <lib/string.h>
+#include <lib/fs.h>
 #include <drivers/keyboard.h>
-
-#include <fs/vfs/mount.h>
-#include <fs/vfs/superblock.h>
-#include <fs/vfs/inode.h>
-#include <fs/vfs/file.h>
-#include <fs/vfs/dentry.h>
-#include <fs/ext2/ext2.h>
-#include <fs/ext2/block.h>
-
-#include <kernel/heap-allocator.h>
 
 /* ------------------------------------------------------------------ */
 /*  Readline – blocking line input from keyboard                      */
@@ -85,43 +76,30 @@ static int next_token(const char **cursor, char *dst, int max)
     return 1;
 }
 
-/* Resolve a path to an inode.  Handles "/" specially.                  */
-static inode_t *resolve(const char *path)
+/* Return a human-readable tag for an fs_dir_entry_t type. */
+static const char *entry_type_tag(uint8_t type)
 {
-    return path_lookup(path);
+    switch (type) {
+    case FS_ENTRY_DIR:  return "DIR ";
+    case FS_ENTRY_FILE: return "FILE";
+    case FS_ENTRY_LINK: return "LINK";
+    default:            return " -- ";
+    }
 }
 
-/* Given "/foo/bar/baz", split into parent="/foo/bar" and name="baz".
-   Parent path goes to pbuf (size pmax), name to nbuf (size nmax).
-   Returns 0 on success, -1 if the path is root or malformed.          */
-static int split_parent_name(const char *path, char *pbuf, int pmax,
-                             char *nbuf, int nmax)
+/* Return a human-readable string for a negative fs_err code. */
+static const char *fs_err_str(short err)
 {
-    int len = strlen(path);
-    if (len <= 1) return -1;        /* "/" has no parent */
-
-    /* find last '/' */
-    int last = len - 1;
-    while (last > 0 && path[last] == '/') last--;   /* trim trailing / */
-    int slash = last;
-    while (slash > 0 && path[slash] != '/') slash--;
-
-    /* name part */
-    int nstart = slash + 1;
-    int nlen = last - nstart + 1;
-    if (nlen <= 0 || nlen >= nmax) return -1;
-    memcpy(nbuf, path + nstart, nlen);
-    nbuf[nlen] = '\0';
-
-    /* parent part */
-    if (slash == 0) {
-        pbuf[0] = '/'; pbuf[1] = '\0';
-    } else {
-        if (slash >= pmax) return -1;
-        memcpy(pbuf, path, slash);
-        pbuf[slash] = '\0';
+    switch (err) {
+    case FS_ERR:           return "error";
+    case FS_ERR_INVAL:     return "invalid path";
+    case FS_ERR_NOT_FOUND: return "not found";
+    case FS_ERR_NOT_DIR:   return "not a directory";
+    case FS_ERR_NOT_FILE:  return "not a file";
+    case FS_ERR_IO:        return "I/O error";
+    case FS_ERR_NOMEM:     return "out of memory";
+    default:               return "unknown error";
     }
-    return 0;
 }
 
 /* ------------------------------------------------------------------ */
@@ -132,53 +110,19 @@ static void cmd_ls(const char *path)
 {
     if (!path || path[0] == '\0') path = "/";
 
-    inode_t *dir = resolve(path);
-    if (!dir) { printf("ls: cannot access '%s'\n", path); return; }
-    if (!FS_IS_DIR(dir->mode)) {
-        printf("ls: '%s' is not a directory\n", path);
-        inode_put(dir);
+    fs_dir_entry_t entries[64];
+    size_t n = fs_list_dir(path, entries, 64, true);
+
+    if ((short)n < 0) {
+        printf("ls: '%s': %s\n", path, fs_err_str((short)n));
         return;
     }
 
-    ext2_fs_data_t    *fs = (ext2_fs_data_t *)dir->sb->fs_data;
-    ext2_inode_data_t *ei = (ext2_inode_data_t *)dir->fs_data;
-    uint32_t bs = fs->block_size;
-    uint32_t dir_blocks = (dir->size + bs - 1) / bs;
-
-    uint8_t *bbuf = (uint8_t *)kmalloc(bs);
-    if (!bbuf) { inode_put(dir); return; }
-
-    for (uint32_t b = 0; b < dir_blocks; b++) {
-        uint32_t phys = ext2_resolve_block_num(
-            fs->dev, &ei->disk_inode, b, bs);
-        if (phys == 0) continue;
-        ext2_read_block(fs->dev, phys, bbuf);
-
-        uint32_t off = 0;
-        while (off < bs) {
-            ext2_dir_entry_t *de = (ext2_dir_entry_t *)(bbuf + off);
-            if (de->rec_len == 0) break;
-
-            if (de->inode != 0) {
-                char name[256];
-                memcpy(name, de->name, de->name_len);
-                name[de->name_len] = '\0';
-
-                const char *tag;
-                switch (de->file_type) {
-                case EXT2_FT_DIR:      tag = "DIR "; break;
-                case EXT2_FT_REG_FILE: tag = "FILE"; break;
-                case EXT2_FT_SYMLINK:  tag = "LINK"; break;
-                default:               tag = " -- "; break;
-                }
-                printf("  [%s] ino=%d  %s\n", tag, de->inode, name);
-            }
-            off += de->rec_len;
-        }
-    }
-
-    kfree((uintptr_t)bbuf);
-    inode_put(dir);
+    for (size_t i = 0; i < n; i++)
+        printf("  [%s] ino=%d  %s\n",
+               entry_type_tag(entries[i].type),
+               entries[i].ino,
+               entries[i].name);
 }
 
 /* ------------------------------------------------------------------ */
@@ -192,17 +136,15 @@ static void cmd_cat(const char *path)
         return;
     }
 
-    file_t *f = file_open(path, FILE_FLAG_READ);
-    if (!f) { printf("cat: cannot open '%s'\n", path); return; }
-
-    char tmp[129];
-    int n;
-    while ((n = file_read(f, tmp, 128)) > 0) {
-        tmp[n] = '\0';
-        printf("%s", tmp);
+    char buf[4097];
+    size_t n = fs_read_file(path, buf, sizeof(buf) - 1);
+    if ((short)n < 0) {
+        printf("cat: '%s': %s\n", path, fs_err_str((short)n));
+        return;
     }
-    printf("\n");
-    file_close(f);
+
+    buf[n] = '\0';
+    printf("%s\n", buf);
 }
 
 /* ------------------------------------------------------------------ */
@@ -216,18 +158,11 @@ static void cmd_touch(const char *path)
         return;
     }
 
-    char pbuf[256], nbuf[256];
-    if (split_parent_name(path, pbuf, 256, nbuf, 256) != 0) {
-        printf("touch: invalid path\n");
-        return;
-    }
-
-    inode_t *parent = resolve(pbuf);
-    if (!parent) { printf("touch: parent '%s' not found\n", pbuf); return; }
-
-    int rc = parent->f_ops->create(parent, nbuf, 0644);
-    inode_put(parent);
-    printf("touch: %s -> %s\n", path, rc == 0 ? "OK" : "FAIL");
+    short rc = fs_create_file(path);
+    if (rc < 0)
+        printf("touch: '%s': %s\n", path, fs_err_str(rc));
+    else
+        printf("touch: %s -> OK\n", path);
 }
 
 /* ------------------------------------------------------------------ */
@@ -247,11 +182,12 @@ static void cmd_write(const char *args)
         printf("write: missing text\n");
         return;
     }
-    file_t *f = file_open(path, FILE_FLAG_WRITE);
-    if (!f) { printf("write: cannot open '%s'\n", path); return; }
-    int n = file_write(f, text, strlen(text));
-    file_close(f);
-    printf("write: wrote %d bytes to %s\n", n, path);
+
+    size_t n = fs_write_file(path, text, strlen(text));
+    if ((short)n < 0)
+        printf("write: '%s': %s\n", path, fs_err_str((short)n));
+    else
+        printf("write: wrote %d bytes to %s\n", (int)n, path);
 }
 
 /* ------------------------------------------------------------------ */
@@ -265,18 +201,11 @@ static void cmd_mkdir(const char *path)
         return;
     }
 
-    char pbuf[256], nbuf[256];
-    if (split_parent_name(path, pbuf, 256, nbuf, 256) != 0) {
-        printf("mkdir: invalid path\n");
-        return;
-    }
-
-    inode_t *parent = resolve(pbuf);
-    if (!parent) { printf("mkdir: parent '%s' not found\n", pbuf); return; }
-
-    int rc = parent->f_ops->mkdir(parent, nbuf, 0755);
-    inode_put(parent);
-    printf("mkdir: %s -> %s\n", path, rc == 0 ? "OK" : "FAIL");
+    short rc = fs_create_dir(path);
+    if (rc < 0)
+        printf("mkdir: '%s': %s\n", path, fs_err_str(rc));
+    else
+        printf("mkdir: %s -> OK\n", path);
 }
 
 /* ------------------------------------------------------------------ */
@@ -290,16 +219,11 @@ static void cmd_rm(const char *path)
         return;
     }
 
-    char pbuf[256], nbuf[256];
-    if (split_parent_name(path, pbuf, 256, nbuf, 256) != 0) {
-        printf("rm: invalid path\n");
-        return;
-    }
-    inode_t *parent = resolve(pbuf);
-    if (!parent) { printf("rm: parent '%s' not found\n", pbuf); return; }
-    int rc = parent->f_ops->unlink(parent, nbuf);
-    inode_put(parent);
-    printf("rm: %s -> %s\n", path, rc == 0 ? "OK" : "FAIL");
+    short rc = fs_remove_file(path);
+    if (rc < 0)
+        printf("rm: '%s': %s\n", path, fs_err_str(rc));
+    else
+        printf("rm: %s -> OK\n", path);
 }
 
 /* ------------------------------------------------------------------ */
@@ -313,22 +237,11 @@ static void cmd_rmdir(const char *path)
         return;
     }
 
-    char pbuf[256], nbuf[256];
-    if (split_parent_name(path, pbuf, 256, nbuf, 256) != 0) {
-        printf("rmdir: invalid path\n");
-        return;
-    }
-    if (strcmp(nbuf, ".") == 0 || strcmp(nbuf, "..") == 0) {
-        printf("rmdir: cannot remove '.' or '..'\n");
-        return;
-    }
-
-    inode_t *parent = resolve(pbuf);
-    if (!parent) { printf("rmdir: parent '%s' not found\n", pbuf); return; }
-
-    int rc = parent->f_ops->rmdir(parent, nbuf);
-    inode_put(parent);
-    printf("rmdir: %s -> %s\n", path, rc == 0 ? "OK" : "FAIL");
+    short rc = fs_remove_dir(path);
+    if (rc < 0)
+        printf("rmdir: '%s': %s\n", path, fs_err_str(rc));
+    else
+        printf("rmdir: %s -> OK\n", path);
 }
 
 /* ------------------------------------------------------------------ */
@@ -342,23 +255,25 @@ static void cmd_stat(const char *path)
         return;
     }
 
-    inode_t *inode = resolve(path);
-    if (!inode) { printf("stat: '%s' not found\n", path); return; }
+    fs_stat_t st;
+    short rc = fs_stat(path, &st);
+    if (rc < 0) {
+        printf("stat: '%s': %s\n", path, fs_err_str(rc));
+        return;
+    }
 
     const char *type = "???";
-    if (FS_IS_DIR(inode->mode))  type = "DIR";
-    if (FS_IS_FILE(inode->mode)) type = "FILE";
-    if (FS_IS_LINK(inode->mode)) type = "LINK";
+    if (FS_IS_DIR(st.mode))  type = "DIR";
+    if (FS_IS_FILE(st.mode)) type = "FILE";
+    if (FS_IS_LINK(st.mode)) type = "LINK";
 
     printf("  path  : %s\n", path);
-    printf("  ino   : %d\n", inode->ino);
+    printf("  ino   : %d\n", st.ino);
     printf("  type  : %s\n", type);
-    printf("  mode  : 0%o\n", inode->mode & 0xFFF);
-    printf("  size  : %d bytes\n", inode->size);
-    printf("  nlink : %d\n", inode->nlink);
-    printf("  blocks: %d\n", inode->blocks);
-
-    inode_put(inode);
+    printf("  mode  : 0%o\n", st.mode & 0xFFF);
+    printf("  size  : %d bytes\n", st.size);
+    printf("  nlink : %d\n", st.nlink);
+    printf("  blocks: %d\n", st.blocks);
 }
 
 /* ------------------------------------------------------------------ */
@@ -435,8 +350,7 @@ static void shell_dispatch(const char *line)
 
 void fs_test_shell(void)
 {
-    mount_t *mnt = get_root_mount();
-    if (!mnt) {
+    if (!fs_exists("/")) {
         printf("[fs-shell] No filesystem mounted. Shell unavailable.\n");
         return;
     }
@@ -477,52 +391,38 @@ void test_filesystem(void)
     printf("\n=== Filesystem Automated Tests ===\n\n");
 
     /* 0. Check mount */
-    mount_t *mnt = get_root_mount();
-    T("root mount exists", mnt != NULL);
-    if (!mnt) {
+    T("root exists", fs_exists("/"));
+    T("root is a directory", fs_is_dir("/"));
+    if (!fs_exists("/")) {
         printf("  Cannot continue without a mounted filesystem.\n");
         return;
     }
 
-    superblock_t *sb = mnt->sb;
-    inode_t *root = sb->root;
-    T("root inode is a directory", root && FS_IS_DIR(root->mode));
-
-    /* 1. ls / (should contain at least . or lost+found) */
+    /* 1. ls / */
     printf("\n-- ls / --\n");
     cmd_ls("/");
 
     /* 2. Create a file */
     printf("\n-- create /test.txt --\n");
-    int rc = root->f_ops->create(root, "test.txt", 0644);
-    T("create /test.txt", rc == 0);
+    short rc = fs_create_file("/test.txt");
+    T("create /test.txt", rc == FS_OK);
 
     /* 3. Write to the file */
     printf("\n-- write /test.txt --\n");
-    file_t *f = file_open("/test.txt", FILE_FLAG_WRITE);
-    T("open /test.txt for write", f != NULL);
-    if (f) {
-        const char *msg = "Hello from ext2 test!";
-        int written = file_write(f, msg, strlen(msg));
-        T("write 21 bytes", written == 21);
-        file_close(f);
-    }
+    const char *msg = "Hello from ext2 test!";
+    size_t written = fs_write_file("/test.txt", msg, strlen(msg));
+    T("write 21 bytes", written == 21);
 
     /* 4. Read it back */
     printf("\n-- cat /test.txt --\n");
-    f = file_open("/test.txt", FILE_FLAG_READ);
-    T("open /test.txt for read", f != NULL);
-    if (f) {
-        char buf[64];
-        memset(buf, 0, sizeof(buf));
-        int n = file_read(f, buf, sizeof(buf) - 1);
-        T("read back > 0 bytes", n > 0);
-        if (n > 0) {
-            buf[n] = '\0';
-            printf("  content: \"%s\"\n", buf);
-            T("content matches", strcmp(buf, "Hello from ext2 test!") == 0);
-        }
-        file_close(f);
+    char buf[64];
+    memset(buf, 0, sizeof(buf));
+    size_t n = fs_read_file("/test.txt", buf, sizeof(buf) - 1);
+    T("read back > 0 bytes", (short)n > 0);
+    if ((short)n > 0) {
+        buf[n] = '\0';
+        printf("  content: \"%s\"\n", buf);
+        T("content matches", strcmp(buf, "Hello from ext2 test!") == 0);
     }
 
     /* 5. stat */
@@ -531,8 +431,8 @@ void test_filesystem(void)
 
     /* 6. mkdir */
     printf("\n-- mkdir /mydir --\n");
-    rc = root->f_ops->mkdir(root, "mydir", 0755);
-    T("mkdir /mydir", rc == 0);
+    rc = fs_create_dir("/mydir");
+    T("mkdir /mydir", rc == FS_OK);
 
     /* 7. ls / after create + mkdir */
     printf("\n-- ls / (after changes) --\n");
@@ -540,34 +440,24 @@ void test_filesystem(void)
 
     /* 8. Create file inside subdir */
     printf("\n-- touch /mydir/inner.txt --\n");
-    inode_t *mydir = path_lookup("/mydir");
-    T("lookup /mydir", mydir != NULL);
-    if (mydir) {
-        rc = mydir->f_ops->create(mydir, "inner.txt", 0644);
-        T("create inner.txt", rc == 0);
-        inode_put(mydir);
-    }
+    rc = fs_create_file("/mydir/inner.txt");
+    T("create /mydir/inner.txt", rc == FS_OK);
 
     printf("\n-- ls /mydir --\n");
     cmd_ls("/mydir");
 
     /* 9. Cleanup – rm file, rmdir */
     printf("\n-- rm /test.txt --\n");
-    rc = root->f_ops->unlink(root, "test.txt");
-    T("unlink /test.txt", rc == 0);
+    rc = fs_remove_file("/test.txt");
+    T("unlink /test.txt", rc == FS_OK);
 
-    /* Remove inner.txt first, then mydir */
     printf("\n-- rm /mydir/inner.txt --\n");
-    mydir = path_lookup("/mydir");
-    if (mydir) {
-        rc = mydir->f_ops->unlink(mydir, "inner.txt");
-        T("unlink inner.txt", rc == 0);
-        inode_put(mydir);
-    }
+    rc = fs_remove_file("/mydir/inner.txt");
+    T("unlink inner.txt", rc == FS_OK);
 
     printf("\n-- rmdir /mydir --\n");
-    rc = root->f_ops->rmdir(root, "mydir");
-    T("rmdir /mydir", rc == 0);
+    rc = fs_remove_dir("/mydir");
+    T("rmdir /mydir", rc == FS_OK);
 
     /* 10. Final ls */
     printf("\n-- ls / (after cleanup) --\n");

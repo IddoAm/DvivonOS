@@ -132,7 +132,7 @@ static int ext2_write(inode_t *inode, const char *buf,
     uint8_t *block_buf = (uint8_t *)kmalloc(bs);
     if (!block_buf) return -1;
 
-    uint32_t bytes_written = 0;
+    size_t bytes_written = 0;
     while (bytes_written < count) {
         uint32_t pos   = offset + bytes_written;
         uint32_t blk   = pos / bs;
@@ -146,9 +146,8 @@ static int ext2_write(inode_t *inode, const char *buf,
             fs->dev, &ei->disk_inode, blk, bs);
 
         if (phys == 0) {
-            /* Need to allocate a new block */
             phys = ext2_alloc_block(inode->sb);
-            if (phys == 0) break;       /* out of space */
+            if (phys == 0) break;
 
             if (ext2_assign_block_num(inode->sb, fs->dev,
                                       &ei->disk_inode, blk,
