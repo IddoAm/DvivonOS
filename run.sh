@@ -42,7 +42,7 @@ Usage: $(basename "$0") [--grub] [--gdb|-g] [--no-close|-n] [--clean|-c] [--rese
   --gdb, -g     Start QEMU with GDB stub (-S -s)
   --no-close,-n Prevent QEMU from closing/rebooting (-no-reboot -no-shutdown)
   --clean, -c   Clean the build directory before building
-  --reset-fs,-r Delete and recreate the ext2 disk image (fresh filesystem)
+  --reset-fs,-r Rebuild ext2 disk image from root-fs/ directory contents
 EOF
       exit 0
       ;;
@@ -58,7 +58,7 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/scripts"
 
 # Ensure required helper scripts exist
-if [ ! -x "$SCRIPT_DIR/build_grub.sh" ] || [ ! -x "$SCRIPT_DIR/pack.sh" ] || [ ! -x "$SCRIPT_DIR/run_qemu.sh" ] || [ ! -x "$SCRIPT_DIR/build_bootloader.sh" ]; then
+if [ ! -x "$SCRIPT_DIR/build_grub.sh" ] || [ ! -x "$SCRIPT_DIR/pack.sh" ] || [ ! -x "$SCRIPT_DIR/run_qemu.sh" ] || [ ! -x "$SCRIPT_DIR/build_bootloader.sh" ] || [ ! -x "$SCRIPT_DIR/create_rootfs.sh" ]; then
   echo "[ERROR] Required scripts missing or not executable in: $SCRIPT_DIR" >&2
   exit 1
 fi
@@ -69,11 +69,8 @@ if [ "$CLEAN" -eq 1 ]; then
 fi
 
 if [ "$RESET_FS" -eq 1 ]; then
-  EXT2_DISK="$BUILD_DIR/ext2disk.img"
-  if [ -f "$EXT2_DISK" ]; then
-    rm -f "$EXT2_DISK"
-    echo "[INFO] Removed old ext2 disk image"
-  fi
+  echo "[INFO] Rebuilding ext2 disk from root-fs/..."
+  "$SCRIPT_DIR/create_rootfs.sh"
 fi
 
 # Assemble QEMU args to forward
