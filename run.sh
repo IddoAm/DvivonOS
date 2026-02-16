@@ -10,6 +10,7 @@ USE_GRUB=0
 CLEAN=0
 GDB=0
 NO_CLOSE=0
+RESET_FS=0
 
 # Parse flags
 while (( "$#" )); do
@@ -30,13 +31,18 @@ while (( "$#" )); do
       CLEAN=1
       shift
       ;;
+    --reset-fs|-r)
+      RESET_FS=1
+      shift
+      ;;
     -h|--help)
       cat <<EOF
-Usage: $(basename "$0") [--grub] [--gdb|-g] [--no-close|-n] [--clean|-c]
+Usage: $(basename "$0") [--grub] [--gdb|-g] [--no-close|-n] [--clean|-c] [--reset-fs|-r]
   --grub        Use GRUB ISO as bootloader (default is custom bootloader)
   --gdb, -g     Start QEMU with GDB stub (-S -s)
   --no-close,-n Prevent QEMU from closing/rebooting (-no-reboot -no-shutdown)
   --clean, -c   Clean the build directory before building
+  --reset-fs,-r Rebuild ext2 disk image from root-fs/ directory contents
 EOF
       exit 0
       ;;
@@ -52,7 +58,7 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/scripts"
 
 # Ensure required helper scripts exist
-if [ ! -x "$SCRIPT_DIR/build_grub.sh" ] || [ ! -x "$SCRIPT_DIR/pack.sh" ] || [ ! -x "$SCRIPT_DIR/run_qemu.sh" ] || [ ! -x "$SCRIPT_DIR/build_bootloader.sh" ]; then
+if [ ! -x "$SCRIPT_DIR/build_grub.sh" ] || [ ! -x "$SCRIPT_DIR/pack.sh" ] || [ ! -x "$SCRIPT_DIR/run_qemu.sh" ] || [ ! -x "$SCRIPT_DIR/build_bootloader.sh" ] || [ ! -x "$SCRIPT_DIR/create_rootfs.sh" ]; then
   echo "[ERROR] Required scripts missing or not executable in: $SCRIPT_DIR" >&2
   exit 1
 fi
@@ -60,6 +66,11 @@ fi
 if [ "$CLEAN" -eq 1 ]; then
   echo "[INFO] Cleaning build directory..."
   "$SCRIPT_DIR/clean.sh"
+fi
+
+if [ "$RESET_FS" -eq 1 ]; then
+  echo "[INFO] Rebuilding ext2 disk from root-fs/..."
+  "$SCRIPT_DIR/create_rootfs.sh"
 fi
 
 # Assemble QEMU args to forward

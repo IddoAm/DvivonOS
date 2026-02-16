@@ -19,9 +19,13 @@
 #include <arch/i686/pic.h>
 #include <prog/terminal.h>
 #include <prog/shell-loops.h>
+#include <prog/shell.h>
 #include <kernel/syscall.h>
 #include <lib/string.h>
 
+#include <fs/vfs/filesystem.h>
+#include <fs/vfs/mount.h>
+#include <drivers/disk/ata.h>
 
 void user_space_loop() {
     while (true) {
@@ -57,6 +61,14 @@ static int do_syscall_write(int fd, const char* buf, size_t len) {
 
 void init_keyboard() {
     isr_register_handler(irq_to_vector(1), keyboard_callback);
+}
+
+void start_the_fs(void){
+    ata_init();
+    filesystem_init();
+    printf("[fs] Filesystem initialized\n");
+    if (mount_init() != 0)
+        printf("[fs] No filesystem available (no IDE disk or no ext2)\n");
 }
 
 void print_memory_regions() {
@@ -219,6 +231,7 @@ static void _init(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr)
     init_keyboard();
     init_memory_management();
     init_hardware();
+    start_the_fs();
 
 }
 
@@ -227,8 +240,12 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
     _init(magic, virt_addr, phys_addr);
     _run_tests();
 
-    create_and_schedule_user_process();
-    scheduler_start();
+    // create_and_schedule_user_process();
+    // scheduler_start();
+    
+    
+    // test_filesystem();
+    fs_test_shell();
 
     main_loop();
 }
