@@ -1,39 +1,90 @@
-## Building and Running the OS
+# Building and Running the OS
 
-### Prerequisites
-- Install the i686 GCC cross-compiler and build utilities. Follow the official guide: [OSDev Wiki: GCC Cross-Compiler](https://wiki.osdev.org/GCC_Cross-Compiler)
-- Install QEMU for emulation:
-	```bash
-	sudo apt-get install qemu-system-x86
-	```
+## Prerequisites
 
-### Build Pipeline
-From the project root, you can use the following scripts:
+- **i686 GCC cross-compiler** and build tools. See [OSDev Wiki: GCC Cross-Compiler](https://wiki.osdev.org/GCC_Cross-Compiler). Ensure the cross-compiler is on your `PATH` (e.g. `export PATH="$HOME/opt/cross/bin:$PATH"`).
+- **QEMU** (i386):
+  ```bash
+  sudo apt-get install qemu-system-x86
+  ```
+- For rebuilding the ext2 disk from `root-fs/`: **e2fsprogs** (e.g. `mkfs.ext2`):
+  ```bash
+  sudo apt-get install e2fsprogs
+  ```
 
-- **Full pipeline:**
-	```bash
-	./run.sh
-	```
-	This will build, package, and run the OS in QEMU.
+## Build system
 
-- **Individual steps:**
-	```bash
-	./scripts/build.sh      # Build kernel.elf
-	./scripts/pack.sh       # Package kernel.elf into MyOS.iso
-	./scripts/run_qemu.sh   # Run QEMU (add -d for debug mode)
-	./scripts/clean.sh      # Remove build and iso artifacts
-	```
+The project uses **CMake**. The root `run.sh` script drives the full pipeline; individual steps are in `scripts/`.
 
-### Debugging
-To run QEMU in debug mode (GDB integration):
+## Full pipeline
+
+From the project root:
+
 ```bash
-./run.sh -d
-```
-or
-```bash
-./scripts/run_qemu.sh -d
+./run.sh
 ```
 
-### Output
-- Build artifacts are placed in the `build/` directory.
-- The bootable ISO image is `build/myos.iso`.
+This will:
+
+1. Create the ext2 disk from `root-fs/` if `build/ext2disk.img` is missing.
+2. Build the **custom bootloader + kernel** (default), or with `--grub` build the kernel and pack a GRUB ISO.
+3. Start QEMU with the boot image and the ext2 disk attached.
+
+## run.sh options
+
+| Option | Short | Description |
+|--------|--------|-------------|
+| `--grub` | — | Use GRUB ISO as bootloader (builds kernel + `build/myos.iso`). |
+| `--gdb` | `-g` | Start QEMU with GDB stub (`-S -s`). Connect with e.g. `gdb -x scripts/debug_memory.gdb`. |
+| `--no-close` | `-n` | Use `-no-reboot -no-shutdown` so QEMU does not exit on reboot/shutdown. |
+| `--clean` | `-c` | Clean the build directory before building. |
+| `--reset-fs` | `-r` | Rebuild the ext2 disk image from `root-fs/` before building. |
+| `--help` | `-h` | Print usage. |
+
+Examples:
+
+```bash
+./run.sh                    # Default: custom bootloader, run QEMU
+./run.sh --grub             # Build and run from GRUB ISO
+./run.sh -g                 # Run with GDB stub
+./run.sh -c                 # Clean then build and run
+./run.sh -r                 # Rebuild ext2 from root-fs/ then build and run
+./run.sh -c -r              # Clean, rebuild ext2, then build and run
+```
+
+## Individual steps
+
+You can run scripts in `scripts/` yourself (after `source scripts/set_env.sh` or letting `run.sh` do it):
+
+| Step | Script | Description |
+|------|--------|-------------|
+| Clean | `./scripts/clean.sh` | Remove `build/` (and `iso/` if present). |
+| Ext2 disk | `./scripts/create_rootfs.sh` | Create `build/ext2disk.img` from `root-fs/`. |
+| Build (default) | `./scripts/build_bootloader.sh` | Configure CMake and build bootloader + kernel → `build/bootloader/complete.img`. |
+| Build (GRUB) | `./scripts/build_grub.sh` then `./scripts/pack.sh` | Build kernel and pack `build/myos.iso`. |
+| Run QEMU | `./scripts/run_qemu.sh` *args* | Start QEMU; pass options (e.g. `-S -s` for GDB) as *args*. |
+
+There is no standalone `build.sh`; use `build_bootloader.sh` or `build_grub.sh` as above.
+
+## Debugging
+
+Run with GDB stub:
+
+```bash
+./run.sh -g
+```
+
+Then attach from another terminal, e.g.:
+
+```bash
+gdb -x scripts/debug_memory.gdb
+```
+
+## Output locations
+
+| Artifact | Path |
+|----------|------|
+| Build directory | `build/` |
+| Custom boot image | `build/bootloader/complete.img` |
+| GRUB ISO | `build/myos.iso` |
+| Ext2 disk image | `build/ext2disk.img` |
