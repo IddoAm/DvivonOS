@@ -132,7 +132,7 @@ uintptr_t kmalloc(uint32_t size) {
 
     if (!allocate_new_heap_page())
         return 0;
-    return kmalloc(size - sizeof(block_header_t));
+    return kmalloc(size - sizeof(block_header_t) * 2);
 }
 
 void kfree(uintptr_t ptr) {
