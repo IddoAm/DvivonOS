@@ -123,11 +123,11 @@ static inline void vmm_set_pte_at(uint32_t window_base, uint32_t vaddr, uint32_t
     }
 }
 
-static inline void vmm_map_kernel_page(uint32_t vaddr, uint32_t phys_addr) {
+void vmm_map_kernel_page(uint32_t vaddr, uint32_t phys_addr) {
     vmm_set_pte_at(PTS_WINDOW, vaddr, phys_addr, PAGE_PRESENT | PAGE_RW | PAGE_GLOBAL);
 }
 
-static inline void vmm_map_user_page(uint32_t vaddr, uint32_t phys_addr) {
+void vmm_map_user_page(uint32_t vaddr, uint32_t phys_addr) {
     uint32_t pd_idx = vaddr >> 22; // The PD index determines which PT we are talking about
     uint32_t* pd = (uint32_t*)PD_WINDOW;
 

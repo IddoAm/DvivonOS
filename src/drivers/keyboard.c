@@ -268,7 +268,7 @@ static void _apply_modifier(keycode_t kc, bool pressed) {
     }
 }
 
-void keyboard_callback() {
+void keyboard_callback(interrupt_frame_t* frame) {
     uint8_t sc = inb(KBD_DATA);
 
     if (sc == 0xE0) {

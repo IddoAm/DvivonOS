@@ -23,9 +23,13 @@
 #include <kernel/syscall.h>
 #include <lib/string.h>
 
+#include <kernel/elf.h>
+
 #include <fs/vfs/filesystem.h>
 #include <fs/vfs/mount.h>
 #include <drivers/disk/ata.h>
+
+#include <lib/fs.h>
 
 void user_space_loop() {
     while (true) {
@@ -240,12 +244,23 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
     _init(magic, virt_addr, phys_addr);
     _run_tests();
 
+    int size = fs_file_size("/test.elf");
+    printf("File size: %d\n", size);
+    void* buffer = (void*)kmalloc(size);
+    fs_read_file("/test.elf", buffer, size);
+    printf("[DEBUG] Read from /test.elf: %s, size: %d\n", buffer, size);
+    if (load_elf(buffer, size) != 0) {
+        printf("ELF verification failed!\n");
+        return;
+    }
+    printf("ELF verification succeeded!\n");
+    kfree((uintptr_t)buffer);
     // create_and_schedule_user_process();
     // scheduler_start();
     
     
-    test_filesystem();
-    fs_test_shell();
+    //test_filesystem();
+    //fs_test_shell();
 
     main_loop();
 }

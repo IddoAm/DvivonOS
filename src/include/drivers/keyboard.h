@@ -110,6 +110,6 @@ typedef struct {
 
 // Return false is buffer is empty
 bool keyboard_read(key_event* event);
-void keyboard_callback();
+void keyboard_callback(interrupt_frame_t* frame);
 
 #endif
