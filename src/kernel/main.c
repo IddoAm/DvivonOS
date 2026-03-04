@@ -75,6 +75,20 @@ void start_the_fs(void){
         printf("[fs] No filesystem available (no IDE disk or no ext2)\n");
 }
 
+void add_elf_proc(char* path)
+{
+    int size = fs_file_size(path);
+    printf("File size: %d\n", size);
+    void* buffer = (void*)kmalloc(size);
+    fs_read_file(path, buffer, size);
+    if (load_elf(buffer, size) != 0) {
+        printf("%oELF verification failed!\n", STD_COLOR_LIGHT_RED);
+        return;
+    }
+    printf("%oELF verification succeeded!\n", STD_COLOR_LIGHT_GREEN);
+    kfree((uintptr_t)buffer);
+}
+
 void print_memory_regions() {
     printf("%omaping all the memory regions.\n  %o1. %ofor usable, \n  %o2. %ofor reserved\n",
            STD_COLOR_LIGHT_BLUE, 1, STD_COLOR_LIGHT_BLUE, 2, STD_COLOR_LIGHT_BLUE);
@@ -88,6 +102,12 @@ void print_memory_regions() {
 
         mmap = (multiboot_mmap_entry_t*)((uintptr_t)mmap + mmap->size + sizeof(mmap->size));
     }
+}
+
+void test_elf_loading() {
+    printf("%oTesting ELF loading...\n", STD_COLOR_LIGHT_BLUE);
+    add_elf_proc("/public-bin/test1");
+    add_elf_proc("/public-bin/test2");
 }
 
 void init_memory_management() {
@@ -212,6 +232,7 @@ void _run_tests()
     print_memory_regions();
     test_heap_allocator();
     print_all_colors_test();
+    test_elf_loading();
 
 }
 
@@ -244,17 +265,6 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
     _init(magic, virt_addr, phys_addr);
     _run_tests();
 
-    int size = fs_file_size("/test.elf");
-    printf("File size: %d\n", size);
-    void* buffer = (void*)kmalloc(size);
-    fs_read_file("/test.elf", buffer, size);
-    printf("[DEBUG] Read from /test.elf: %s, size: %d\n", buffer, size);
-    if (load_elf(buffer, size) != 0) {
-        printf("ELF verification failed!\n");
-        return;
-    }
-    printf("ELF verification succeeded!\n");
-    kfree((uintptr_t)buffer);
     //create_and_schedule_user_process();
     scheduler_start();
     

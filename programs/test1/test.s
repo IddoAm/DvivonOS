@@ -1,6 +1,6 @@
 .section .data
 msg:
-    .ascii "Hello from user\n"
+    .ascii "Hello from hillel\n"
     .set MSG_LEN, . - msg
 
 .section .text

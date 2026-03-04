@@ -4,7 +4,7 @@
 #include <arch/i686/gdt.h>
 #include <kernel/heap-allocator.h>
 
-#define PROCESS_MAX_TICKS 10
+#define PROCESS_MAX_TICKS 100
 
 static uint32_t next_pid = 1;
 

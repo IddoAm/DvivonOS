@@ -139,3 +139,55 @@ add_custom_target(run_complete
     COMMAND qemu-system-i386 -drive file=${COMPLETE_IMG},format=raw,if=floppy
     DEPENDS complete_bootloader
 )
+
+# Compile all user programs ______________________________________________________________________________________________
+# Create output directory for compiled programs
+file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/root-fs/public-bin)
+file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/programs)
+
+# Macro to compile a program
+macro(add_program PROGRAM_NAME PROGRAM_DIR)
+    file(GLOB PROGRAM_ASM "${PROGRAM_DIR}/*.s")
+    file(GLOB PROGRAM_LD "${PROGRAM_DIR}/*.ld")
+    
+    if(PROGRAM_ASM AND PROGRAM_LD)
+        set(PROGRAM_OBJ "${CMAKE_BINARY_DIR}/programs/${PROGRAM_NAME}.o")
+        set(PROGRAM_ELF "${CMAKE_SOURCE_DIR}/root-fs/public-bin/${PROGRAM_NAME}")
+        
+        # Compile assembly
+        add_custom_command(
+            OUTPUT ${PROGRAM_OBJ}
+            COMMAND ${CMAKE_ASM_COMPILER} -o ${PROGRAM_OBJ} ${PROGRAM_ASM}
+            DEPENDS ${PROGRAM_ASM}
+            VERBATIM
+            COMMENT "Assembling ${PROGRAM_NAME}..."
+        )
+        
+        # Link to ELF
+        add_custom_command(
+            OUTPUT ${PROGRAM_ELF}
+            COMMAND ${CMAKE_LINKER} -m elf_i386 -T ${PROGRAM_LD} -o ${PROGRAM_ELF} ${PROGRAM_OBJ}
+            DEPENDS ${PROGRAM_OBJ} ${PROGRAM_LD}
+            VERBATIM
+            COMMENT "Linking ${PROGRAM_NAME}..."
+        )
+        
+        # Add to global target
+        list(APPEND PROGRAM_ELFS ${PROGRAM_ELF})
+    endif()
+endmacro()
+
+# Find and compile all programs
+file(GLOB PROGRAM_DIRS "${CMAKE_SOURCE_DIR}/programs/*/")
+foreach(PROGRAM_DIR ${PROGRAM_DIRS})
+    get_filename_component(PROGRAM_NAME ${PROGRAM_DIR} NAME)
+    add_program(${PROGRAM_NAME} ${PROGRAM_DIR})
+endforeach()
+
+# Create target to build all programs
+if(DEFINED PROGRAM_ELFS)
+    add_custom_target(programs ALL DEPENDS ${PROGRAM_ELFS})
+else()
+    add_custom_target(programs)
+    message(WARNING "No programs found in ${CMAKE_SOURCE_DIR}/programs/")
+endif()

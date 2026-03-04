@@ -31,23 +31,13 @@ int load_elf(void* buffer, uint32_t size) {
         if (ph[i].type == PT_LOAD) {
             
             // 5. Allocate memory for this segment
-            // We loop through the memory size in page increments
             for (uint32_t vaddr = ph[i].vaddr; vaddr < ph[i].vaddr + ph[i].memsz; vaddr += PAGE_SIZE) {
-                // Ensure the address is page-aligned for the allocator
                 uint32_t page_aligned_vaddr = vaddr & 0xFFFFF000;
                 
-                // You might need a check here to see if the page is already allocated
                 vmm_alloc_user_page_at(page_aligned_vaddr);
-
-                /* PERSONALIZATION NOTE: 
-                   If you are loading this as a kernel-level process/test, 
-                   ensure your vmm_alloc_user_page_at (or the underlying PTE setter) 
-                   applies the GLOBAL flag (Bit 8) to these allocations. */
             }
 
             // 6. Copy the data from the ELF buffer to the virtual address
-            // Dest is the virtual address in the new address space
-            // Source is the offset within our temporary ELF buffer
             memcpy((void*)ph[i].vaddr, (uint8_t*)buffer + ph[i].offset, ph[i].filesz);
 
             // 7. Handle BSS: Zero out the remainder of memsz
