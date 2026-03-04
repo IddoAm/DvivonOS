@@ -38,7 +38,6 @@ static syscall_func_t sys_table[SYSCALL_COUNT] = {
 // SYSCALL HANDLER
 
 void syscall_handler(interrupt_frame_t* frame) {
-    printf("syscall: %d\n", frame->eax);
     uint32_t num = frame->eax;
     int ret = 1;
 

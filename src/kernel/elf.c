@@ -1,13 +1,68 @@
 #include <kernel/elf.h>
 #include <kernel/vmm.h>
 #include <lib/stdio.h>
+#include <kernel/scheduler/scheduler.h>
+#include <lib/string.h>
 
+#define PT_LOAD 1
 
 int load_elf(void* buffer, uint32_t size) {
     elf_header_t* header = (elf_header_t*)buffer;
+    
+    // 1. Validation
     if (header->ident[0] != 0x7F || header->ident[1] != 'E' || 
         header->ident[2] != 'L' || header->ident[3] != 'F') {
-        return -1; // Not a valid ELF
+        return -1; 
     }
+
+    // 2. Create the process structure and address space
+    process_t* proc = (process_t*)kmalloc(sizeof(process_t));
+    memset(proc, 0, sizeof(*proc));
+    process_init(proc, (void*)header->entry);
+
+    // 3. Switch to the new process address space to perform the load
+    uint32_t old_cr3 = vmm_read_cr3();
+    vmm_switch_address_space(proc->pd_phys);
+
+    // 4. Parse Program Headers
+    elf_program_header_t* ph = (elf_program_header_t*)((uint8_t*)buffer + header->ph_offset);
+
+    for (uint32_t i = 0; i < header->ph_count; i++) {
+        if (ph[i].type == PT_LOAD) {
+            
+            // 5. Allocate memory for this segment
+            // We loop through the memory size in page increments
+            for (uint32_t vaddr = ph[i].vaddr; vaddr < ph[i].vaddr + ph[i].memsz; vaddr += PAGE_SIZE) {
+                // Ensure the address is page-aligned for the allocator
+                uint32_t page_aligned_vaddr = vaddr & 0xFFFFF000;
+                
+                // You might need a check here to see if the page is already allocated
+                vmm_alloc_user_page_at(page_aligned_vaddr);
+
+                /* PERSONALIZATION NOTE: 
+                   If you are loading this as a kernel-level process/test, 
+                   ensure your vmm_alloc_user_page_at (or the underlying PTE setter) 
+                   applies the GLOBAL flag (Bit 8) to these allocations. */
+            }
+
+            // 6. Copy the data from the ELF buffer to the virtual address
+            // Dest is the virtual address in the new address space
+            // Source is the offset within our temporary ELF buffer
+            memcpy((void*)ph[i].vaddr, (uint8_t*)buffer + ph[i].offset, ph[i].filesz);
+
+            // 7. Handle BSS: Zero out the remainder of memsz
+            if (ph[i].memsz > ph[i].filesz) {
+                memset((uint8_t*)ph[i].vaddr + ph[i].filesz, 0, ph[i].memsz - ph[i].filesz);
+            }
+        }
+    }
+
+    // 8. Restore the original address space
+    vmm_switch_address_space(old_cr3);
+
+    // Add to your process list/scheduler here
+    // scheduler_add_process(proc);
+    scheduler_add_process(proc);
+
     return 0;
 }

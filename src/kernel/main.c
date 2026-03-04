@@ -255,8 +255,8 @@ void kernel_main(uint32_t magic, uint32_t virt_addr, uint32_t phys_addr) {
     }
     printf("ELF verification succeeded!\n");
     kfree((uintptr_t)buffer);
-    // create_and_schedule_user_process();
-    // scheduler_start();
+    //create_and_schedule_user_process();
+    scheduler_start();
     
     
     //test_filesystem();
