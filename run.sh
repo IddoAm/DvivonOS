@@ -12,25 +12,28 @@ CLEAN=0
 GDB=0
 NO_CLOSE=0
 RESET_FS=0
+BUILD_PROGRAMS=0
 
 # -------------------------------
 # Parse flags
 # -------------------------------
 while (( "$#" )); do
   case "$1" in
-    --gdb|-g)      GDB=1;      shift ;;
-    --no-close|-n) NO_CLOSE=1; shift ;;
-    --grub)        USE_GRUB=1; shift ;;
-    --clean|-c)    CLEAN=1;    shift ;;
-    --reset-fs|-r) RESET_FS=1; shift ;;
+    --gdb|-g)       GDB=1;      shift ;;
+    --no-close|-n)  NO_CLOSE=1; shift ;;
+    --grub)         USE_GRUB=1; shift ;;
+    --clean|-c)     CLEAN=1;    shift ;;
+    --reset-fs|-r)  RESET_FS=1; shift ;;
+    --programs|-p)  BUILD_PROGRAMS=1; RESET_FS=1; shift ;;
     -h|--help)
       cat <<EOF
-Usage: $(basename "$0") [--grub] [--gdb|-g] [--no-close|-n] [--clean|-c] [--reset-fs|-r]
-  --grub        Use GRUB ISO as bootloader (default is custom bootloader)
-  --gdb, -g     Start QEMU with GDB stub (-S -s)
-  --no-close,-n Prevent QEMU from closing/rebooting (-no-reboot -no-shutdown)
-  --clean, -c   Clean the build directory before building
-  --reset-fs,-r Rebuild ext2 disk image from root-fs/ directory contents
+Usage: $(basename "$0") [--grub] [--gdb|-g] [--no-close|-n] [--clean|-c] [--reset-fs|-r] [--programs|-p]
+  --grub           Use GRUB ISO as bootloader (default is custom bootloader)
+  --gdb, -g        Start QEMU with GDB stub (-S -s)
+  --no-close, -n   Prevent QEMU from closing/rebooting (-no-reboot -no-shutdown)
+  --clean, -c      Clean the build directory before building
+  --reset-fs, -r   Rebuild ext2 disk image from root-fs/ directory contents
+  --programs, -p   Build/rebuild programs and update filesystem
 EOF
       exit 0
       ;;
@@ -72,7 +75,15 @@ elif [ ! -f "$EXT2_DISK" ]; then
 fi
 
 # -------------------------------
-# 3. Build
+# 3. Build programs
+# -------------------------------
+if [ "$BUILD_PROGRAMS" -eq 1 ]; then
+  echo "[INFO] Building programs..."
+  cmake --build "$BUILD_DIR" --target programs
+fi
+
+# -------------------------------
+# 4. Build
 # -------------------------------
 if [ "$USE_GRUB" -eq 1 ]; then
   echo "[INFO] Building kernel (GRUB)..."
@@ -85,7 +96,7 @@ else
 fi
 
 # -------------------------------
-# 4. Assemble QEMU arguments
+# 5. Assemble QEMU arguments
 # -------------------------------
 QEMU_ARGS=()
 
@@ -107,7 +118,7 @@ if [ "$NO_CLOSE" -eq 1 ]; then
 fi
 
 # -------------------------------
-# 5. Run
+# 6. Run
 # -------------------------------
 echo "[INFO] Starting QEMU..."
 "$SCRIPT_DIR/run_qemu.sh" "${QEMU_ARGS[@]}"
