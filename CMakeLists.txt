@@ -145,36 +145,95 @@ add_custom_target(run_complete
 file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/root-fs/public-bin)
 file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/programs)
 
-# Macro to compile a program
+# NewLib configuration (static linking with C library)
+set(NEWLIB_BASE "$ENV{HOME}/opt/cross" CACHE STRING "NewLib base directory")
+set(NEWLIB_INCLUDE "${NEWLIB_BASE}/include")
+set(NEWLIB_LIB "${NEWLIB_BASE}/lib")
+
+# Shared user-space files
+set(CRT0_ASM "${CMAKE_SOURCE_DIR}/tools/user-space/crt0.s")
+set(SYSCALLS_C "${CMAKE_SOURCE_DIR}/tools/user-space/syscalls.c")
+set(DEFAULT_LINKER_SCRIPT "${CMAKE_SOURCE_DIR}/tools/user-space/linker.ld")
+
+# Compile crt0.s once for all programs
+set(CRT0_OBJ "${CMAKE_BINARY_DIR}/programs/crt0.o")
+add_custom_command(
+    OUTPUT ${CRT0_OBJ}
+    COMMAND ${CMAKE_ASM_COMPILER} -o ${CRT0_OBJ} ${CRT0_ASM}
+    DEPENDS ${CRT0_ASM}
+    VERBATIM
+    COMMENT "Assembling shared crt0..."
+)
+
+# Compile syscalls.c once for all programs
+set(SYSCALLS_OBJ "${CMAKE_BINARY_DIR}/programs/syscalls.o")
+add_custom_command(
+    OUTPUT ${SYSCALLS_OBJ}
+    COMMAND ${CMAKE_C_COMPILER} -c ${SYSCALLS_C} -o ${SYSCALLS_OBJ} -I${NEWLIB_INCLUDE} -ffreestanding
+    DEPENDS ${SYSCALLS_C}
+    VERBATIM
+    COMMENT "Compiling shared syscalls..."
+)
+
+# Macro to compile a program (supports both C and assembly)
 macro(add_program PROGRAM_NAME PROGRAM_DIR)
     file(GLOB PROGRAM_ASM "${PROGRAM_DIR}/*.s")
+    file(GLOB PROGRAM_C "${PROGRAM_DIR}/*.c")
     file(GLOB PROGRAM_LD "${PROGRAM_DIR}/*.ld")
     
-    if(PROGRAM_ASM AND PROGRAM_LD)
-        set(PROGRAM_OBJ "${CMAKE_BINARY_DIR}/programs/${PROGRAM_NAME}.o")
-        set(PROGRAM_ELF "${CMAKE_SOURCE_DIR}/root-fs/public-bin/${PROGRAM_NAME}")
-        
-        # Compile assembly
-        add_custom_command(
-            OUTPUT ${PROGRAM_OBJ}
-            COMMAND ${CMAKE_ASM_COMPILER} -o ${PROGRAM_OBJ} ${PROGRAM_ASM}
-            DEPENDS ${PROGRAM_ASM}
-            VERBATIM
-            COMMENT "Assembling ${PROGRAM_NAME}..."
-        )
-        
-        # Link to ELF
-        add_custom_command(
-            OUTPUT ${PROGRAM_ELF}
-            COMMAND ${CMAKE_LINKER} -m elf_i386 -T ${PROGRAM_LD} -o ${PROGRAM_ELF} ${PROGRAM_OBJ}
-            DEPENDS ${PROGRAM_OBJ} ${PROGRAM_LD}
-            VERBATIM
-            COMMENT "Linking ${PROGRAM_NAME}..."
-        )
-        
-        # Add to global target
-        list(APPEND PROGRAM_ELFS ${PROGRAM_ELF})
+    # Use custom linker script if provided, otherwise use default
+    if(PROGRAM_LD)
+        set(LINKER_SCRIPT ${PROGRAM_LD})
+    else()
+        set(LINKER_SCRIPT ${DEFAULT_LINKER_SCRIPT})
     endif()
+    
+    set(PROGRAM_OBJS "${CRT0_OBJ};${SYSCALLS_OBJ}")
+    
+    # Compile program-specific assembly files (excluding crt0)
+    foreach(ASM_FILE ${PROGRAM_ASM})
+        get_filename_component(ASM_NAME ${ASM_FILE} NAME_WE)
+        set(ASM_OBJ "${CMAKE_BINARY_DIR}/programs/${PROGRAM_NAME}_${ASM_NAME}.o")
+        
+        add_custom_command(
+            OUTPUT ${ASM_OBJ}
+            COMMAND ${CMAKE_ASM_COMPILER} -o ${ASM_OBJ} ${ASM_FILE}
+            DEPENDS ${ASM_FILE}
+            VERBATIM
+            COMMENT "Assembling ${ASM_NAME} for ${PROGRAM_NAME}..."
+        )
+        
+        list(APPEND PROGRAM_OBJS "${ASM_OBJ}")
+    endforeach()
+    
+    # Compile program-specific C files
+    foreach(C_FILE ${PROGRAM_C})
+        get_filename_component(C_NAME ${C_FILE} NAME_WE)
+        set(C_OBJ "${CMAKE_BINARY_DIR}/programs/${PROGRAM_NAME}_${C_NAME}.o")
+        
+        add_custom_command(
+            OUTPUT ${C_OBJ}
+            COMMAND ${CMAKE_C_COMPILER} -c ${C_FILE} -o ${C_OBJ} -I${NEWLIB_INCLUDE} -ffreestanding
+            DEPENDS ${C_FILE}
+            VERBATIM
+            COMMENT "Compiling ${C_NAME} for ${PROGRAM_NAME}..."
+        )
+        
+        list(APPEND PROGRAM_OBJS "${C_OBJ}")
+    endforeach()
+    
+    # Link to ELF with NewLib
+    set(PROGRAM_ELF "${CMAKE_SOURCE_DIR}/root-fs/public-bin/${PROGRAM_NAME}")
+    add_custom_command(
+        OUTPUT ${PROGRAM_ELF}
+        COMMAND ${CMAKE_LINKER} -m elf_i386 -T ${LINKER_SCRIPT} -o ${PROGRAM_ELF} ${PROGRAM_OBJS} -L${NEWLIB_LIB} -lc -lgcc
+        DEPENDS ${PROGRAM_OBJS} ${LINKER_SCRIPT} ${CRT0_OBJ} ${SYSCALLS_OBJ}
+        VERBATIM
+        COMMENT "Linking ${PROGRAM_NAME}..."
+    )
+    
+    # Add to global target
+    list(APPEND PROGRAM_ELFS ${PROGRAM_ELF})
 endmacro()
 
 # Find and compile all programs

@@ -3,6 +3,38 @@
 ## Prerequisites
 
 - **i686 GCC cross-compiler** and build tools. See [OSDev Wiki: GCC Cross-Compiler](https://wiki.osdev.org/GCC_Cross-Compiler). Ensure the cross-compiler is on your `PATH` (e.g. `export PATH="$HOME/opt/cross/bin:$PATH"`).
+- **NewLib** C library for i686. You can build and install it yourself, 
+  ```bash
+  wget ftp://sourceware.org/pub/newlib/newlib-4.6.0.20260123.tar.gz
+  ```
+  then extract the tar. and move to a new directory (e.g. `newlib-build/`):
+  ```bash
+  mkdir build-newlib
+  cd build-newlib
+  ```
+  now we can build it with the following command (adjust paths as needed):
+  ```bash
+  ../newlib-cygwin/newlib/configure --target=i686-elf \
+    --prefix=$HOME/opt/cross \
+    --disable-newlib-supplied-syscalls \
+    --disable-nls \
+    --enable-newlib-reent-small \
+    --disable-malloc-debugging \
+    --disable-newlib-multithread \
+    --disable-shared \
+    --enable-static
+    ```
+  now run the install:
+  ```bash
+  make
+  make install
+  ```
+
+  now check that everything is set up correctly:
+  ```bash
+  ls /home/linux/opt/cross/lib
+  ```
+  expect to see `libc.a  libg.a  libm.a` among the output.
 - **QEMU** (i386):
   ```bash
   sudo apt-get install qemu-system-x86

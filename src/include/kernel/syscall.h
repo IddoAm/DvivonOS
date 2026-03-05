@@ -8,8 +8,13 @@
 #define SYSCALL_EXIT    0
 #define SYSCALL_WRITE   1
 #define SYSCALL_READ    2
+#define SYSCALL_SBRK    3
+#define SYSCALL_CLOSE   4
+#define SYSCALL_fSTAT   5
+#define SYSCALL_ISATTY  6
+#define SYSCALL_LSEEK   7
 
-#define SYSCALL_COUNT   3
+#define SYSCALL_COUNT   8
 
 #define SYSCALL_SUCCESS  0
 #define SYSCALL_ERROR   -1

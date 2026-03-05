@@ -22,7 +22,7 @@ while (( "$#" )); do
     --gdb|-g)       GDB=1;      shift ;;
     --no-close|-n)  NO_CLOSE=1; shift ;;
     --grub)         USE_GRUB=1; shift ;;
-    --clean|-c)     CLEAN=1;    shift ;;
+    --clean|-c)     CLEAN=1; BUILD_PROGRAMS=1; RESET_FS=1;    shift ;;
     --reset-fs|-r)  RESET_FS=1; shift ;;
     --programs|-p)  BUILD_PROGRAMS=1; RESET_FS=1; shift ;;
     -h|--help)
