@@ -62,7 +62,16 @@ if [ "$CLEAN" -eq 1 ]; then
 fi
 
 # -------------------------------
-# 2. Filesystem
+# 2. Build programs
+# -------------------------------
+if [ "$BUILD_PROGRAMS" -eq 1 ]; then
+  echo "[INFO] Building programs..."
+  cmake --build "$BUILD_DIR" --target programs
+fi
+
+
+# -------------------------------
+# 3. Filesystem
 # -------------------------------
 EXT2_DISK="$BUILD_DIR/ext2disk.img"
 
@@ -74,13 +83,6 @@ elif [ ! -f "$EXT2_DISK" ]; then
   "$SCRIPT_DIR/create_rootfs.sh"
 fi
 
-# -------------------------------
-# 3. Build programs
-# -------------------------------
-if [ "$BUILD_PROGRAMS" -eq 1 ]; then
-  echo "[INFO] Building programs..."
-  cmake --build "$BUILD_DIR" --target programs
-fi
 
 # -------------------------------
 # 4. Build
@@ -121,4 +123,5 @@ fi
 # 6. Run
 # -------------------------------
 echo "[INFO] Starting QEMU..."
+echo "${QEMU_ARGS[@]}"
 "$SCRIPT_DIR/run_qemu.sh" "${QEMU_ARGS[@]}"
