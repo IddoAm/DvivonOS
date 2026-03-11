@@ -146,7 +146,7 @@ file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/root-fs/public-bin)
 file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/programs)
 
 # NewLib configuration (static linking with C library)
-set(NEWLIB_BASE "$ENV{HOME}/opt/cross" CACHE STRING "NewLib base directory")
+set(NEWLIB_BASE "$ENV{HOME}/opt/cross/i686-elf" CACHE STRING "NewLib base directory")
 set(NEWLIB_INCLUDE "${NEWLIB_BASE}/include")
 set(NEWLIB_LIB "${NEWLIB_BASE}/lib")
 
@@ -188,9 +188,16 @@ macro(add_program PROGRAM_NAME PROGRAM_DIR)
         set(LINKER_SCRIPT ${DEFAULT_LINKER_SCRIPT})
     endif()
     
-    set(PROGRAM_OBJS "${CRT0_OBJ};${SYSCALLS_OBJ}")
+    # Start with empty object list
+    set(PROGRAM_OBJS "")
     
-    # Compile program-specific assembly files (excluding crt0)
+    # Only include crt0.o and syscalls.o for C programs
+    if(PROGRAM_C)
+        list(APPEND PROGRAM_OBJS "${CRT0_OBJ}")
+        list(APPEND PROGRAM_OBJS "${SYSCALLS_OBJ}")
+    endif()
+    
+    # Compile program-specific assembly files
     foreach(ASM_FILE ${PROGRAM_ASM})
         get_filename_component(ASM_NAME ${ASM_FILE} NAME_WE)
         set(ASM_OBJ "${CMAKE_BINARY_DIR}/programs/${PROGRAM_NAME}_${ASM_NAME}.o")
@@ -222,18 +229,33 @@ macro(add_program PROGRAM_NAME PROGRAM_DIR)
         list(APPEND PROGRAM_OBJS "${C_OBJ}")
     endforeach()
     
-    # Link to ELF with NewLib
-    set(PROGRAM_ELF "${CMAKE_SOURCE_DIR}/root-fs/public-bin/${PROGRAM_NAME}")
-    add_custom_command(
-        OUTPUT ${PROGRAM_ELF}
-        COMMAND ${CMAKE_LINKER} -m elf_i386 -T ${LINKER_SCRIPT} -o ${PROGRAM_ELF} ${PROGRAM_OBJS} -L${NEWLIB_LIB} -lc -lgcc
-        DEPENDS ${PROGRAM_OBJS} ${LINKER_SCRIPT} ${CRT0_OBJ} ${SYSCALLS_OBJ}
-        VERBATIM
-        COMMENT "Linking ${PROGRAM_NAME}..."
-    )
-    
-    # Add to global target
-    list(APPEND PROGRAM_ELFS ${PROGRAM_ELF})
+    # Link to ELF with NewLib (only if we have objects to link)
+    if(PROGRAM_OBJS)
+        set(PROGRAM_ELF "${CMAKE_SOURCE_DIR}/root-fs/public-bin/${PROGRAM_NAME}")
+        
+        if(PROGRAM_C)
+            # C programs: link with NewLib
+            add_custom_command(
+                OUTPUT ${PROGRAM_ELF}
+                COMMAND ${CMAKE_LINKER} -m elf_i386 -T ${LINKER_SCRIPT} -o ${PROGRAM_ELF} ${PROGRAM_OBJS} -L${NEWLIB_LIB} -lc
+                DEPENDS ${PROGRAM_OBJS} ${LINKER_SCRIPT}
+                VERBATIM
+                COMMENT "Linking ${PROGRAM_NAME} with NewLib..."
+            )
+        else()
+            # Assembly-only programs: link without NewLib
+            add_custom_command(
+                OUTPUT ${PROGRAM_ELF}
+                COMMAND ${CMAKE_LINKER} -m elf_i386 -T ${LINKER_SCRIPT} -o ${PROGRAM_ELF} ${PROGRAM_OBJS}
+                DEPENDS ${PROGRAM_OBJS} ${LINKER_SCRIPT}
+                VERBATIM
+                COMMENT "Linking ${PROGRAM_NAME}..."
+            )
+        endif()
+        
+        # Add to global target
+        list(APPEND PROGRAM_ELFS ${PROGRAM_ELF})
+    endif()
 endmacro()
 
 # Find and compile all programs

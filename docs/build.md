@@ -14,15 +14,15 @@
   ```
   now we can build it with the following command (adjust paths as needed):
   ```bash
-  ../newlib-cygwin/newlib/configure --target=i686-elf \
-    --prefix=$HOME/opt/cross \
-    --disable-newlib-supplied-syscalls \
-    --disable-nls \
-    --enable-newlib-reent-small \
-    --disable-malloc-debugging \
-    --disable-newlib-multithread \
-    --disable-shared \
-    --enable-static
+  export PATH="$HOME/opt/cross/bin:$PATH
+
+
+  ../newlib-cygwin/configure --target=i686-elf \
+  --prefix=$HOME/opt/cross \
+  --disable-newlib-supplied-syscalls \
+  --enable-newlib-reent-small \
+  --disable-newlib-multithread \
+  --with-newlib
     ```
   now run the install:
   ```bash
@@ -32,7 +32,7 @@
 
   now check that everything is set up correctly:
   ```bash
-  ls /home/linux/opt/cross/lib
+  i686-elf-readelf -h $HOME/opt/cross/i686-elf/lib/libc.a | grep Machine
   ```
   expect to see `libc.a  libg.a  libm.a` among the output.
 - **QEMU** (i386):

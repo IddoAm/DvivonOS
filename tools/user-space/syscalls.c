@@ -23,6 +23,17 @@ static inline int do_syscall(uintptr_t num, uintptr_t arg1, uintptr_t arg2, uint
     return ret;
 }
 
+// newlib imports these without underscores alias them for convenience 
+int write(int file, char *ptr, int len) __attribute__((alias("_write")));
+void* sbrk(int incr)                    __attribute__((alias("_sbrk")));
+void exit(int status)                   __attribute__((alias("_exit")));
+int close(int file)                     __attribute__((alias("_close")));
+int fstat(int file, struct stat *st)    __attribute__((alias("_fstat")));
+int isatty(int file)                     __attribute__((alias("_isatty")));
+int lseek(int file, int ptr, int dir)   __attribute__((alias("_lseek")));
+int read(int file, char *ptr, int len)  __attribute__((alias("_read")));
+
+
 int _write(int file, char *ptr, int len) {
     return do_syscall(SYSCALL_WRITE, (uintptr_t)ptr, (uintptr_t)len, (uintptr_t)file);
 }
@@ -37,7 +48,15 @@ void _exit(int status) {
 }
 
 int _close(int file) { return -1; }
+
 int _fstat(int file, struct stat *st) { st->st_mode = -1; return 0; }
+
 int _isatty(int file) { return 1; }
+
 int _lseek(int file, int ptr, int dir) { return 0; }
+
 int _read(int file, char *ptr, int len) { return 0; }
+
+/* extra stubs newlib wants */
+int kill(int pid, int sig) { (void)pid; (void)sig; return -1; }
+int getpid(void) { return 1; }
