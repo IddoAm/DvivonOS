@@ -25,6 +25,7 @@ typedef struct process {
     uint32_t pd_phys;
     
     uint32_t kernel_stack_top;
+    uint32_t heap_brk;
 
     struct process* next;
 } process_t;

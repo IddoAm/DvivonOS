@@ -1,6 +1,5 @@
 #include <kernel/elf.h>
 #include <kernel/vmm.h>
-#include <lib/stdio.h>
 #include <kernel/scheduler/scheduler.h>
 #include <lib/string.h>
 
@@ -8,11 +7,11 @@
 
 int load_elf(void* buffer, uint32_t size) {
     elf_header_t* header = (elf_header_t*)buffer;
-    
+
     // 1. Validation
-    if (header->ident[0] != 0x7F || header->ident[1] != 'E' || 
+    if (header->ident[0] != 0x7F || header->ident[1] != 'E' ||
         header->ident[2] != 'L' || header->ident[3] != 'F') {
-        return -1; 
+        return -1;
     }
 
     // 2. Create the process structure and address space
@@ -29,7 +28,6 @@ int load_elf(void* buffer, uint32_t size) {
 
     for (uint32_t i = 0; i < header->ph_count; i++) {
         if (ph[i].type == PT_LOAD) {
-            
             // 5. Allocate memory for this segment
             for (uint32_t vaddr = ph[i].vaddr; vaddr < ph[i].vaddr + ph[i].memsz; vaddr += PAGE_SIZE) {
                 uint32_t page_aligned_vaddr = vaddr & 0xFFFFF000;
@@ -50,8 +48,6 @@ int load_elf(void* buffer, uint32_t size) {
     // 8. Restore the original address space
     vmm_switch_address_space(old_cr3);
 
-    // Add to your process list/scheduler here
-    // scheduler_add_process(proc);
     scheduler_add_process(proc);
 
     return 0;

@@ -34,29 +34,39 @@ int lseek(int file, int ptr, int dir)   __attribute__((alias("_lseek")));
 int read(int file, char *ptr, int len)  __attribute__((alias("_read")));
 
 
-int _write(int file, char *ptr, int len) {
-    return do_syscall(SYSCALL_WRITE, (uintptr_t)ptr, (uintptr_t)len, (uintptr_t)file);
-}
-
-void * _sbrk(int incr) {
-    return (void *)do_syscall(SYSCALL_SBRK, (uintptr_t)incr, 0, 0);
-}
-
 void _exit(int status) {
     do_syscall(SYSCALL_EXIT, (uintptr_t)status, 0, 0);
     while(1);
 }
 
-int _close(int file) { return -1; }
+int _write(int file, char *ptr, int len) {
+    return do_syscall(SYSCALL_WRITE, (uintptr_t)file, (uintptr_t)ptr, (uintptr_t)len);
+}
 
-int _fstat(int file, struct stat *st) { st->st_mode = -1; return 0; }
+int _read(int file, char *ptr, int len) {
+    return do_syscall(SYSCALL_READ, (uintptr_t)file, (uintptr_t)ptr, (uintptr_t)len);
+}
 
-int _isatty(int file) { return 1; }
+void *_sbrk(int incr) {
+    return (void *)do_syscall(SYSCALL_SBRK, (uintptr_t)incr, 0, 0);
+}
 
-int _lseek(int file, int ptr, int dir) { return 0; }
+int _close(int file) {
+    return do_syscall(SYSCALL_CLOSE, (uintptr_t)file, 0, 0);
+}
 
-int _read(int file, char *ptr, int len) { return 0; }
+int _fstat(int file, struct stat *st) {
+    st->st_mode = S_IFCHR;
+    return do_syscall(SYSCALL_fSTAT, (uintptr_t)file, (uintptr_t)st, 0);
+}
 
-/* extra stubs newlib wants */
+int _isatty(int file) {
+    return do_syscall(SYSCALL_ISATTY, (uintptr_t)file, 0, 0);
+}
+
+int _lseek(int file, int ptr, int dir) {
+    return do_syscall(SYSCALL_LSEEK, (uintptr_t)file, (uintptr_t)ptr, (uintptr_t)dir);
+}
+
 int kill(int pid, int sig) { (void)pid; (void)sig; return -1; }
 int getpid(void) { return 1; }

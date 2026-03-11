@@ -123,5 +123,4 @@ fi
 # 6. Run
 # -------------------------------
 echo "[INFO] Starting QEMU..."
-echo "${QEMU_ARGS[@]}"
 "$SCRIPT_DIR/run_qemu.sh" "${QEMU_ARGS[@]}"

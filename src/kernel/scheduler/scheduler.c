@@ -23,7 +23,8 @@ void context_switch(process_t* from, process_t* to, interrupt_frame_t* frame) {
     current_process = to;
     current_process_ticks = 0;
     vmm_switch_address_space(to->pd_phys);
-
+    // debug
+    printf("[DBG] context_switch to pid=%d eip=0x%x\n", (int)to->pid, (unsigned)to->context->eip);
     // set kernel stack
     tss_set_stack(to->kernel_stack_top);
     
@@ -62,8 +63,8 @@ void scheduler_init() {
 
     isr_register_handler(irq_to_vector(0), (interrupt_handler_t)schedule);
     state = SCHED_STATE_STARTING;
-
-    for (;;)
+    
+        for (;;)
         asm volatile("hlt");
 }
 
@@ -86,10 +87,10 @@ void scheduler_start() {
         printf("scheduler_start: no processes to run\n");
         return;
     }
-
+    
     current_process = (process_t*)process_list;
     state = SCHED_STATE_READY;
-
+    
     vmm_switch_address_space(current_process->pd_phys);
     scheduler_init();
 }
@@ -110,11 +111,12 @@ void process_init(process_t* p, void (*entry)(void)) {
     uint32_t old_cr3 = vmm_read_cr3();
     vmm_switch_address_space(p->pd_phys);
 
+
+    uint32_t stack_high = (PROCESS_STACK_TOP - 1) & ~(PAGE_SIZE - 1);
     for (int i = 0; i < USER_STACK_PAGES; i++) {
-        uint32_t stack_page_vaddr = PROCESS_STACK_TOP - (i + 1) * PAGE_SIZE;
+        uint32_t stack_page_vaddr = stack_high - i * PAGE_SIZE;
         if (vmm_alloc_user_page_at(stack_page_vaddr) == false) {
             printf("process_init: failed to allocate user stack page\n");
-            // restore old cr3 before returning
             vmm_switch_address_space(old_cr3);
             return;
         }
@@ -132,9 +134,10 @@ void process_init(process_t* p, void (*entry)(void)) {
     // Data segments
     frame->ss = frame->ds = frame->es = frame->fs = frame->gs = GDT_USER_DATA_SEL; // Ensure 0x23
 
-    frame->esp = PROCESS_STACK_TOP; // User ESP
+    frame->useresp = PROCESS_STACK_TOP; // User ESP for iret ring-3 return
     
     p->context = frame;
+    p->heap_brk = PROCESS_HEAP_START;
     p->next = NULL;
 }
 

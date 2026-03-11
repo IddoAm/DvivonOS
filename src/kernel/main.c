@@ -83,6 +83,7 @@ void add_elf_proc(char* path)
     fs_read_file(path, buffer, size);
     if (load_elf(buffer, size) != 0) {
         printf("%oELF verification failed!\n", STD_COLOR_LIGHT_RED);
+        kfree((uintptr_t)buffer);
         return;
     }
     printf("%oELF verification succeeded!\n", STD_COLOR_LIGHT_GREEN);
@@ -106,8 +107,10 @@ void print_memory_regions() {
 
 void test_elf_loading() {
     printf("%oTesting ELF loading...\n", STD_COLOR_LIGHT_BLUE);
+    add_elf_proc("/public-bin/C-test");
     add_elf_proc("/public-bin/test1");
     add_elf_proc("/public-bin/test2");
+
 }
 
 void init_memory_management() {
