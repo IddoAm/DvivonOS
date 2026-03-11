@@ -56,7 +56,6 @@ int _close(int file) {
 }
 
 int _fstat(int file, struct stat *st) {
-    st->st_mode = S_IFCHR;
     return do_syscall(SYSCALL_fSTAT, (uintptr_t)file, (uintptr_t)st, 0);
 }
 

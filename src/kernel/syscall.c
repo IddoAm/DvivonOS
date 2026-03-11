@@ -95,7 +95,7 @@ static syscall_func_t sys_table[SYSCALL_COUNT] = {
 // SYSCALL HANDLER
 
 void syscall_handler(interrupt_frame_t* frame) {
-    printf("%o[HD] syscall num %d\n", STD_COLOR_LIGHT_BLUE, frame->eax);
+    // printf("%o[HD] syscall num %d\n", STD_COLOR_LIGHT_BLUE, frame->eax);
     uint32_t num = frame->eax;
     int ret = 1;
 

@@ -23,8 +23,9 @@ void context_switch(process_t* from, process_t* to, interrupt_frame_t* frame) {
     current_process = to;
     current_process_ticks = 0;
     vmm_switch_address_space(to->pd_phys);
-    // debug
-    printf("[DBG] context_switch to pid=%d eip=0x%x\n", (int)to->pid, (unsigned)to->context->eip);
+
+    // printf("[DBG] context_switch to pid=%d eip=0x%x\n", (int)to->pid, (unsigned)to->context->eip);
+
     // set kernel stack
     tss_set_stack(to->kernel_stack_top);
     
