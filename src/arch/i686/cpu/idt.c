@@ -92,16 +92,22 @@ void isr_common_handler(interrupt_frame_t* frame) {
         }
     }
 
-    // If the interrupt was from IRQ8 or higher, we need to send an EOI to the slave PIC
-    if (frame->int_no >= IRQ_SLAVE_THRESHOLD) {
-        outb(PIC_SLAVE_CMD, PIC_EOI); // Send EOI to slave PIC
+    if (frame->int_no >= 33 && frame->int_no <= 47) { // 33-47 (Keyboard, Disk, etc.)
+        if (frame->int_no >= 40) outb(0xA0, 0x20);
+        outb(0x20, 0x20);
     }
-    // Always send an EOI to the master PIC
-    outb(PIC_MASTER_CMD, PIC_EOI); // Send EOI to master PIC
 }
 
 void isr_register_handler(uint8_t num, interrupt_handler_t handler) {
-    isr_table_start[num * MAX_HANDELERS_PER_INTURRUPT] = (uint32_t)handler;
+    for (int i = 0; i < MAX_HANDELERS_PER_INTURRUPT; i++) {
+        uint32_t idx = num * MAX_HANDELERS_PER_INTURRUPT + i;
+        if (isr_table_start[idx] == 0) {
+            isr_table_start[idx] = (uint32_t)handler;
+            return;
+        }
+    }
+
+    printf("%o[ERROR] Too many handlers for interrupt %d\n", STD_COLOR_LIGHT_RED, num);
 }
 void isr_unregister_handler(uint8_t num, interrupt_handler_t handler) {
     for (int i = 0; i < MAX_HANDELERS_PER_INTURRUPT; i++) {

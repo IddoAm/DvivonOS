@@ -120,5 +120,20 @@ fi
 # -------------------------------
 # 6. Run
 # -------------------------------
-echo "[INFO] Starting QEMU..."
-"$SCRIPT_DIR/run_qemu.sh" "${QEMU_ARGS[@]}"
+if [ "$GDB" -eq 1 ]; then
+  echo "[INFO] Starting QEMU in the background..."
+  "$SCRIPT_DIR/run_qemu.sh" "${QEMU_ARGS[@]}" &
+  QEMU_PID=$!
+  
+  # Give QEMU a split second to open the port before GDB tries to connect
+  sleep 0.5 
+  
+  echo "[INFO] Launching GDB..."
+  gdb -x scripts/debug_memory.gdb
+  
+  # Optional: Automatically kill QEMU when you exit GDB
+  kill $QEMU_PID 
+else
+  echo "[INFO] Starting QEMU..."
+  "$SCRIPT_DIR/run_qemu.sh" "${QEMU_ARGS[@]}"
+fi

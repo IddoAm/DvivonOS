@@ -3,8 +3,9 @@
 #include <lib/string.h>
 #include <arch/i686/gdt.h>
 #include <kernel/heap-allocator.h>
+#include <arch/i686/pic.h>
 
-#define PROCESS_MAX_TICKS 100
+#define PROCESS_MAX_TICKS 2
 
 static uint32_t next_pid = 1;
 
@@ -13,25 +14,25 @@ static process_t* process_list = NULL;
 static volatile uint32_t current_process_ticks = 0;
 static scheduler_state state = SCHED_STATE_OFF;
 
+extern void switch_to_stack(uint32_t* old_esp, uint32_t new_esp);
+extern void fork_ret(void);
+
 // Must be called within an interrupt context
 void context_switch(process_t* from, process_t* to, interrupt_frame_t* frame) {
-    if (from) {
-        memcpy(from->context, frame, sizeof(interrupt_frame_t));
-    }
-    
-    // Switch to new process
+    printf("SWITCH\n");
+// 1. Prepare global state and hardware
     current_process = to;
-    current_process_ticks = 0;
-    vmm_switch_address_space(to->pd_phys);
-
-    // set kernel stack
     tss_set_stack(to->kernel_stack_top);
-    
-    // Load incoming process state
-    memcpy(frame, to->context, sizeof(interrupt_frame_t));
+    vmm_switch_address_space(to->pd_phys);
+    // 2. Perform the swap
+    // After this line, the CPU is executing Process 'to'
+    switch_to_stack(&from->kernel_esp, to->kernel_esp);
 }
 
 void schedule(interrupt_frame_t* frame) {
+
+    outb(0x20, 0x20);
+
     if (state == SCHED_STATE_STARTING) {
         state = SCHED_STATE_RUNNING;
         memcpy(frame, current_process->context, sizeof(interrupt_frame_t));
@@ -98,12 +99,13 @@ void process_init(process_t* p, void (*entry)(void)) {
     // To set const value
     *(uint32_t*)&p->pid = next_pid++;
 
-    uint32_t kstack = kmalloc(PAGE_SIZE);
+    uint32_t kstack = kmalloc(PAGE_SIZE*8);
     if (!kstack) {
         printf("Failed to allocate kernel stack\n");
         return;
     }
-    p->kernel_stack_top = kstack + PAGE_SIZE;
+    p->kernel_stack_base = kstack;               // store base
+    p->kernel_stack_top = kstack + PAGE_SIZE*8;    // store top
 
     p->pd_phys = vmm_create_address_space();
     // Allocate user stack - allocate while switched to the new address space
@@ -122,17 +124,27 @@ void process_init(process_t* p, void (*entry)(void)) {
     // restore original address space
     vmm_switch_address_space(old_cr3);
     // Set up initial context
-    interrupt_frame_t* frame = (interrupt_frame_t*)kmalloc(sizeof(interrupt_frame_t));
-    memset(frame, 0, sizeof(*frame));
-    
-    frame->eip = (uint32_t)entry;
-    frame->cs = GDT_USER_CODE_SEL; // Ensure this is 0x1B (Index 3 | Ring 3)
-    frame->eflags = 0x202;         // Interrupts Enabled
-    
-    // Data segments
-    frame->ss = frame->ds = frame->es = frame->fs = frame->gs = GDT_USER_DATA_SEL; // Ensure 0x23
+// 3. PRIME THE KERNEL STACK
+    // Place the frame at the very top of the stack
+    interrupt_frame_t* frame = (interrupt_frame_t*)(p->kernel_stack_top - sizeof(interrupt_frame_t));
+    memset(frame, 0, sizeof(interrupt_frame_t));
 
-    frame->esp = PROCESS_STACK_TOP; // User ESP
+    // Initial User State
+    frame->eip = (uint32_t)entry;
+    frame->cs = GDT_USER_CODE_SEL; // 0x1B
+    frame->eflags = 0x202;         // IF set
+    frame->esp = PROCESS_STACK_TOP; 
+    frame->ss = GDT_USER_DATA_SEL; // 0x23
+    frame->ds = frame->es = frame->fs = frame->gs = GDT_USER_DATA_SEL;
+
+    // 4. SET THE BOOKMARK (kernel_esp)
+    // We need to simulate a function call. 
+    // We put the address of 'fork_ret' below the frame.
+    uint32_t* stack_ptr = (uint32_t*)frame;
+    stack_ptr--; // Move down 4 bytes
+    *stack_ptr = (uint32_t)fork_ret; // This is what switch_to_stack's 'ret' will hit
+
+    p->kernel_esp = (uint32_t)stack_ptr;
     
     p->context = frame;
     p->next = NULL;
@@ -187,19 +199,23 @@ void process_exit(process_t* proc, interrupt_frame_t* frame) {
         }
     }
     
+    // If current process is exiting, force immediate reschedule BEFORE freeing proc
+    if (proc == current_process) {
+        process_t* next = (process_t*)process_list;
+        context_switch(NULL, next, frame);  // Don't save dying process state
+    }
+
     // Free context
     kfree((uintptr_t)proc->context);
 
     // Free resources
     vmm_destroy_address_space(proc->pd_phys);
-    kfree((uintptr_t)proc);
-    kfree((uintptr_t)proc->kernel_stack_top);
 
-    // If current process is exiting, force immediate reschedule
-    if (proc == current_process) {
-        process_t* next = (process_t*)process_list;
-        context_switch(NULL, next, frame);  // Don't save dying process state
-    }
+    // Free kernel stack using the base pointer we stored
+    kfree((uintptr_t)proc->kernel_stack_base);
+
+    // Finally free process struct itself
+    kfree((uintptr_t)proc);
 }
 
 process_t* get_current_process(void) {
