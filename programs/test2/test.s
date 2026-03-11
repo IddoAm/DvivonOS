@@ -13,5 +13,11 @@ pushl $2
     movl $msg, %ecx      # Arg 2: Pointer to message
     movl $MSG_LEN, %edx  # Arg 3: Length
     int $0x67            # Your custom syscall interrupt
-    _loop:
-    jmp _loop
+
+    call _exit
+
+
+_exit:
+    movl $0, %eax        # Syscall number for exit
+    xorl %ebx, %ebx      # Status code 0
+    int $0x67            # Your custom syscall interrupt
