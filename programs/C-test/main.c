@@ -3,7 +3,11 @@
 
 
 int main() {
-    printf("Hello from C! This is a test of the C library and syscalls.\n");
+    char name[32];
+    printf("enter your name\n");
+
+    scanf("%31s", name);
+    printf("hello, %s!\n", name);
     
     return 0;
 }

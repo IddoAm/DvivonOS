@@ -5,11 +5,17 @@
 #include <stdint.h>
 #include <kernel/vmm.h>
 #include <kernel/heap-allocator.h>
+#include <fs/vfs/file.h>
 
 #define PROCESS_HEAP_START 0x00601000
 
 #define PROCESS_STACK_TOP 0xBFF00000
 #define USER_STACK_PAGES 4
+
+#define MAX_FDS 16
+#define STDIN_FD  0
+#define STDOUT_FD 1
+#define STDERR_FD 2
 
 typedef enum {
     SCHED_STATE_OFF = 0,
@@ -26,6 +32,8 @@ typedef struct process {
     
     uint32_t kernel_stack_top;
     uint32_t heap_brk;
+
+    file_t* fds[MAX_FDS];
 
     struct process* next;
 } process_t;

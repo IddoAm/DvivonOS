@@ -1,11 +1,29 @@
 #include <kernel/syscall.h>
 #include <lib/stdio.h>
 #include <kernel/scheduler/scheduler.h>
+#include <fs/vfs/file.h>
+#include <drivers/keyboard.h>
 
 // TODO: Add user pointer validation before dereferencing
 
 typedef int (*syscall_func_t)(interrupt_frame_t* frame);
 
+static int _process_alloc_fd(process_t* proc, file_t* file) {
+    if (!proc || !file) return -1;
+    for (int fd = STDERR_FD + 1; fd < MAX_FDS; fd++) {
+        if (!proc->fds[fd]) {
+            proc->fds[fd] = file;
+            return fd;
+        }
+    }
+    return -1;
+}
+
+static file_t* _process_get_fd(process_t* proc, int fd) {
+    if (!proc) return NULL;
+    if (fd <= STDERR_FD || fd >= MAX_FDS) return NULL;
+    return proc->fds[fd];
+}
 
 static int syscall_exit(interrupt_frame_t* frame) {
     process_t* current = get_current_process();
@@ -15,20 +33,97 @@ static int syscall_exit(interrupt_frame_t* frame) {
 }
 
 static int syscall_write(interrupt_frame_t* frame) {
+    uint32_t fd = frame->ebx;
     const char* buf = (const char*)frame->ecx;
     size_t len = frame->edx;
 
-    for (size_t i = 0; i < len; i++)
-        putc(buf[i]);
-    return (int)len;
-}
+    if (!buf)
+        return SYSCALL_ERROR;
 
+    if (len == 0)
+        return 0;
+
+    if (fd == STDOUT_FD || fd == STDERR_FD) {
+        for (size_t i = 0; i < len; i++)
+            putc(buf[i]);
+        return (int)len;
+    }
+
+    file_t* f = _process_get_fd(get_current_process(), fd);
+    if (!f) return SYSCALL_ERROR;
+
+    return file_write(f, buf, len);
+}
 
 static int syscall_read(interrupt_frame_t* frame) {
-    // TODO: implement this
-    return 0;
+    uint32_t fd = frame->ebx;
+    char* buf = (char*)frame->ecx;
+    size_t len = frame->edx;
+
+    if (!buf)
+        return SYSCALL_ERROR;
+
+    if (len == 0)
+        return 0;
+
+    if (fd == STDIN_FD) {
+        size_t i = 0;
+        while (i < len) {
+            key_event ev;
+            while (!keyboard_read(&ev)) {
+                __asm__ volatile("hlt");
+            }
+            if (!ev.pressed)
+                continue;
+            if (ev.ascii == 0)
+                continue;
+
+            buf[i++] = (char)ev.ascii;
+            if (ev.ascii == '\n')
+                break;
+        }
+        return (int)i;
+    }
+
+    file_t* f = _process_get_fd(get_current_process(), fd);
+    if (!f) return SYSCALL_ERROR;
+
+    return file_read(f, buf, len);
 }
 
+
+static int syscall_open(interrupt_frame_t* frame) {
+    const char* path = (const char*)frame->ebx;
+    uint32_t flags = frame->ecx;
+
+    if (!path)
+        return SYSCALL_ERROR;
+
+    uint32_t file_flags = 0;
+    uint32_t acc = flags & 3;
+    if (acc == 0)
+        file_flags |= FILE_FLAG_READ;
+    else if (acc == 1)
+        file_flags |= FILE_FLAG_WRITE;
+    else if (acc == 2)
+        file_flags |= (FILE_FLAG_READ | FILE_FLAG_WRITE);
+
+    // Map append behavior
+    if (flags & 0x400)
+        file_flags |= FILE_FLAG_APPEND;
+
+    file_t* f = file_open(path, file_flags);
+    if (!f)
+        return SYSCALL_ERROR;
+
+    int fd = _process_alloc_fd(get_current_process(), f);
+    if (fd < 0) {
+        file_close(f);
+        return SYSCALL_ERROR;
+    }
+
+    return fd;
+}
 
 static int syscall_sbrk(interrupt_frame_t* frame) {
     process_t* proc = get_current_process();
@@ -59,8 +154,18 @@ static int syscall_sbrk(interrupt_frame_t* frame) {
 
 
 static int syscall_close(interrupt_frame_t* frame) {
-    // TODO: implement this
-    return SYSCALL_SUCCESS;
+    int fd = (int)frame->ebx;
+    process_t* proc = get_current_process();
+
+    if (fd <= STDERR_FD || fd >= MAX_FDS)
+        return SYSCALL_ERROR;
+
+    file_t* f = proc->fds[fd];
+    if (!f)
+        return SYSCALL_ERROR;
+
+    proc->fds[fd] = NULL;
+    return file_close(f) == 0 ? SYSCALL_SUCCESS : SYSCALL_ERROR;
 }
 
 static int syscall_fstat(interrupt_frame_t* frame) {
@@ -85,6 +190,7 @@ static syscall_func_t sys_table[SYSCALL_COUNT] = {
     [SYSCALL_EXIT]   = syscall_exit,
     [SYSCALL_WRITE]  = syscall_write,
     [SYSCALL_READ]   = syscall_read,
+    [SYSCALL_OPEN]   = syscall_open,
     [SYSCALL_SBRK]   = syscall_sbrk,
     [SYSCALL_CLOSE]  = syscall_close,
     [SYSCALL_fSTAT]  = syscall_fstat,

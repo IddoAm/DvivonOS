@@ -13,8 +13,9 @@
 #define SYSCALL_fSTAT   5
 #define SYSCALL_ISATTY  6
 #define SYSCALL_LSEEK   7
+#define SYSCALL_OPEN    8
 
-#define SYSCALL_COUNT   8
+#define SYSCALL_COUNT   9
 
 #define SYSCALL_SUCCESS  0
 #define SYSCALL_ERROR   -1

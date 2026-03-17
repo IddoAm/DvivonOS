@@ -11,6 +11,7 @@
 #define SYSCALL_fSTAT   5
 #define SYSCALL_ISATTY  6
 #define SYSCALL_LSEEK   7
+#define SYSCALL_OPEN    8
 
 static inline int do_syscall(uintptr_t num, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3) {
     int ret;
@@ -31,6 +32,7 @@ int close(int file)                     __attribute__((alias("_close")));
 int fstat(int file, struct stat *st)    __attribute__((alias("_fstat")));
 int isatty(int file)                     __attribute__((alias("_isatty")));
 int lseek(int file, int ptr, int dir)   __attribute__((alias("_lseek")));
+int open(const char *path, int flags, int mode) __attribute__((alias("_open")));
 int read(int file, char *ptr, int len)  __attribute__((alias("_read")));
 
 
@@ -65,6 +67,10 @@ int _isatty(int file) {
 
 int _lseek(int file, int ptr, int dir) {
     return do_syscall(SYSCALL_LSEEK, (uintptr_t)file, (uintptr_t)ptr, (uintptr_t)dir);
+}
+
+int _open(const char *path, int flags, int mode) {
+    return do_syscall(SYSCALL_OPEN, (uintptr_t)path, (uintptr_t)flags, (uintptr_t)mode);
 }
 
 int kill(int pid, int sig) { (void)pid; (void)sig; return -1; }

@@ -3,6 +3,7 @@
 #include <lib/string.h>
 #include <arch/i686/gdt.h>
 #include <kernel/heap-allocator.h>
+#include <fs/vfs/file.h>
 
 #define PROCESS_MAX_TICKS 100
 
@@ -97,7 +98,8 @@ void scheduler_start() {
 }
 
 void process_init(process_t* p, void (*entry)(void)) {
-    // To set const value
+    // Zero the process structure and set PID
+    memset(p, 0, sizeof(process_t));
     *(uint32_t*)&p->pid = next_pid++;
 
     uint32_t kstack = kmalloc(PAGE_SIZE);
@@ -193,6 +195,14 @@ void process_exit(process_t* proc, interrupt_frame_t* frame) {
     
     // Free context
     kfree((uintptr_t)proc->context);
+
+    // Close any open file descriptors
+    for (int fd = STDERR_FD + 1; fd < MAX_FDS; fd++) {
+        if (proc->fds[fd]) {
+            file_close(proc->fds[fd]);
+            proc->fds[fd] = NULL;
+        }
+    }
 
     // Free resources
     vmm_destroy_address_space(proc->pd_phys);
