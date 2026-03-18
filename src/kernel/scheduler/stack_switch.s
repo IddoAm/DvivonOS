@@ -24,26 +24,6 @@ switch_to_stack:
        that was saved on the NEW process's stack. */
     ret
 
-.globl switch_to_stack_and_load_cr3
-switch_to_stack_and_load_cr3:
-    /* [esp+12] : new_cr3, [esp+8] : new_esp, [esp+4] : old_esp_ptr */
-    
-    /* 1. Save old stack */
-    movl    4(%esp), %eax
-    movl    %esp, (%eax)
-
-    /* 2. Load new stack */
-    movl    8(%esp), %edx
-    movl    %edx, %esp
-
-    /* 3. NOW switch the address space (CR3) */
-    /* Since we are on the new stack, and the new stack is (hopefully) 
-       mapped in the new CR3, this is safe! */
-    movl    12(%esp), %ecx
-    movl    %ecx, %cr3
-
-    ret
-
 .globl fork_ret
 fork_ret:
     /* 
