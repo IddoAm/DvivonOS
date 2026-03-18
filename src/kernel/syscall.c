@@ -76,9 +76,16 @@ static int syscall_read(interrupt_frame_t* frame) {
             if (!ev.pressed)
                 continue;
             if (ev.ascii == 0)
+            {
+                if (ev.code == KC_BSPC && i > 0) {
+                    buf[--i] = '\0';
+                    printf("\b \b");
+                }
                 continue;
+            }
 
             buf[i++] = (char)ev.ascii;
+            putc(ev.ascii);
             if (ev.ascii == '\n')
                 break;
         }
