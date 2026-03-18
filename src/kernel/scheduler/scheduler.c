@@ -15,7 +15,6 @@ static volatile uint32_t current_process_ticks = 0;
 static scheduler_state state = SCHED_STATE_OFF;
 
 extern void switch_to_stack(uint32_t* old_esp, uint32_t new_esp);
-extern void switch_to_stack_and_load_cr3(uint32_t* old_esp, uint32_t new_esp, uint32_t new_cr3);
 extern void fork_ret(void);
 
 // Must be called within an interrupt context
