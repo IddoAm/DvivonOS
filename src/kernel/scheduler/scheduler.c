@@ -5,7 +5,7 @@
 #include <kernel/heap-allocator.h>
 #include <arch/i686/pic.h>
 
-#define PROCESS_MAX_TICKS 2
+#define PROCESS_MAX_TICKS 5
 
 static uint32_t next_pid = 1;
 
@@ -15,23 +15,22 @@ static volatile uint32_t current_process_ticks = 0;
 static scheduler_state state = SCHED_STATE_OFF;
 
 extern void switch_to_stack(uint32_t* old_esp, uint32_t new_esp);
+extern void switch_to_stack_and_load_cr3(uint32_t* old_esp, uint32_t new_esp, uint32_t new_cr3);
 extern void fork_ret(void);
 
 // Must be called within an interrupt context
-void context_switch(process_t* from, process_t* to, interrupt_frame_t* frame) {
-    printf("SWITCH\n");
-// 1. Prepare global state and hardware
+void context_switch(process_t* from, process_t* to) {
+    // 1. Prepare global state and hardware
     current_process = to;
     tss_set_stack(to->kernel_stack_top);
     vmm_switch_address_space(to->pd_phys);
+
     // 2. Perform the swap
     // After this line, the CPU is executing Process 'to'
     switch_to_stack(&from->kernel_esp, to->kernel_esp);
 }
 
 void schedule(interrupt_frame_t* frame) {
-
-    outb(0x20, 0x20);
 
     if (state == SCHED_STATE_STARTING) {
         state = SCHED_STATE_RUNNING;
@@ -53,7 +52,7 @@ void schedule(interrupt_frame_t* frame) {
         if (!next_proc)
             next_proc = (process_t*)process_list;
 
-        context_switch(current_process, next_proc, frame);
+        context_switch(current_process, next_proc);
     }
 }
 
@@ -99,13 +98,13 @@ void process_init(process_t* p, void (*entry)(void)) {
     // To set const value
     *(uint32_t*)&p->pid = next_pid++;
 
-    uint32_t kstack = kmalloc(PAGE_SIZE*8);
+    uint32_t kstack = kmalloc(PAGE_SIZE*2);
     if (!kstack) {
         printf("Failed to allocate kernel stack\n");
         return;
     }
     p->kernel_stack_base = kstack;               // store base
-    p->kernel_stack_top = kstack + PAGE_SIZE*8;    // store top
+    p->kernel_stack_top = kstack + PAGE_SIZE*2;    // store top
 
     p->pd_phys = vmm_create_address_space();
     // Allocate user stack - allocate while switched to the new address space
@@ -202,7 +201,7 @@ void process_exit(process_t* proc, interrupt_frame_t* frame) {
     // If current process is exiting, force immediate reschedule BEFORE freeing proc
     if (proc == current_process) {
         process_t* next = (process_t*)process_list;
-        context_switch(NULL, next, frame);  // Don't save dying process state
+        context_switch(NULL, next);  // Don't save dying process state
     }
 
     // Free context

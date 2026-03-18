@@ -92,22 +92,12 @@ void isr_common_handler(interrupt_frame_t* frame) {
         }
     }
 
-    if (frame->int_no >= 33 && frame->int_no <= 47) { // 33-47 (Keyboard, Disk, etc.)
-        if (frame->int_no >= 40) outb(0xA0, 0x20);
-        outb(0x20, 0x20);
-    }
+    if (frame->int_no >= 40) outb(0xA0, 0x20);
+    outb(0x20, 0x20);
 }
 
 void isr_register_handler(uint8_t num, interrupt_handler_t handler) {
-    for (int i = 0; i < MAX_HANDELERS_PER_INTURRUPT; i++) {
-        uint32_t idx = num * MAX_HANDELERS_PER_INTURRUPT + i;
-        if (isr_table_start[idx] == 0) {
-            isr_table_start[idx] = (uint32_t)handler;
-            return;
-        }
-    }
-
-    printf("%o[ERROR] Too many handlers for interrupt %d\n", STD_COLOR_LIGHT_RED, num);
+    isr_table_start[num * MAX_HANDELERS_PER_INTURRUPT] = (uint32_t)handler;
 }
 void isr_unregister_handler(uint8_t num, interrupt_handler_t handler) {
     for (int i = 0; i < MAX_HANDELERS_PER_INTURRUPT; i++) {

@@ -1,9 +1,12 @@
 #include <kernel/syscall.h>
-#include <arch/i686/idt.h>
-#include <lib/stdio.h>
-#include <arch/i686/idt.h>
-#include <kernel/scheduler/scheduler.h>
 
+#include <arch/i686/idt.h>
+#include <arch/i686/idt.h>
+#include <arch/i686/irq_lock.h>
+
+#include <lib/stdio.h>
+
+#include <kernel/scheduler/scheduler.h>
 
 // TODO: Add user pointer check and copy to local buffer for safety
 
@@ -21,9 +24,15 @@ static int  syscall_exit(interrupt_frame_t* frame) {
 
 static int  syscall_write(interrupt_frame_t* frame) {
     // Ignore file descriptor for now (in ebx)
+    interrupt_lock_t lock;
     
     for (size_t i = 0; i < frame->edx; i++) {
+        // Make the putc operation atomic
+        lock_interrupts(&lock);
+
         putc(((const char*)frame->ecx)[i]);
+
+        unlock_interrupts(&lock);
     }
     
     return SYSCALL_SUCCESS;
