@@ -6,7 +6,7 @@
 #include <fs/vfs/file.h>
 #include <arch/i686/pic.h>
 
-#define PROCESS_MAX_TICKS 1
+#define PROCESS_MAX_TICKS 5
 
 static uint32_t next_pid = 1;
 
@@ -20,7 +20,7 @@ extern void fork_ret(void);
 
 // Must be called within an interrupt context
 void context_switch(process_t* from, process_t* to) {
-    printf("%ofrom %d to %d", STD_COLOR_CYAN, from->pid, to->pid);
+    // printf("%ofrom %d to %d", STD_COLOR_CYAN, from->pid, to->pid);
     current_process = to;
     tss_set_stack(to->kernel_stack_top);
     vmm_switch_address_space(to->pd_phys);
@@ -136,11 +136,20 @@ void process_init(process_t* p, void (*entry)(void)) {
     frame->ss    = GDT_USER_DATA_SEL;
     frame->ds    = frame->es = frame->fs = frame->gs = GDT_USER_DATA_SEL;
 
-    // Push fork_ret as the return address below the frame,
-    // so switch_to_stack's ret lands in fork_ret which irets into user space
+    // Build the stack that switch_to_stack expects when restoring this process:
+    //   [edi] [esi] [ebx] [ebp] [return addr = fork_ret]
+    // switch_to_stack will pop edi/esi/ebx/ebp, then ret into fork_ret
     uint32_t* stack_ptr = (uint32_t*)frame;
     stack_ptr--;
-    *stack_ptr = (uint32_t)fork_ret;
+    *stack_ptr = (uint32_t)fork_ret;  // return address for ret
+    stack_ptr--;
+    *stack_ptr = 0;  // ebp
+    stack_ptr--;
+    *stack_ptr = 0;  // ebx
+    stack_ptr--;
+    *stack_ptr = 0;  // esi
+    stack_ptr--;
+    *stack_ptr = 0;  // edi
 
     p->kernel_esp = (uint32_t)stack_ptr;
     p->heap_brk = PROCESS_HEAP_START;
@@ -200,11 +209,10 @@ void process_exit(process_t* proc, interrupt_frame_t* frame) {
     // Switch away BEFORE freeing anything, using a throwaway save location
     if (proc == current_process) {
         process_t* next = process_list;
-        uint32_t dead_esp;
+        process_t dead_proc;
         current_process = next;
-        tss_set_stack(next->kernel_stack_top);
-        vmm_switch_address_space(next->pd_phys);
-        switch_to_stack(&dead_esp, next->kernel_esp);
+
+        context_switch(&dead_proc, next);
         // Never reached — proc's memory is freed after we've already left its stack
     }
 
