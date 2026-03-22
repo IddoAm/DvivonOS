@@ -45,7 +45,7 @@ void stdio_clear(void) {
 
 void putc(char c) {
     if (active_interface.putc)
-        active_interface.putc(c);
+        active_interface.putc(c);     
 }
 
 void puts(const char* str) {

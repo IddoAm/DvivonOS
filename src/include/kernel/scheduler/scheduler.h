@@ -27,13 +27,14 @@ typedef enum {
 typedef struct process {
     const uint32_t pid;
 
-    interrupt_frame_t* context; 
     uint32_t pd_phys;
     
+    uint32_t kernel_esp;
     uint32_t kernel_stack_top;
     uint32_t heap_brk;
 
     file_t* fds[MAX_FDS];
+    uint32_t kernel_stack_base; 
 
     struct process* next;
 } process_t;

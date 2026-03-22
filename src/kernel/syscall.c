@@ -3,6 +3,8 @@
 #include <kernel/scheduler/scheduler.h>
 #include <fs/vfs/file.h>
 #include <drivers/keyboard.h>
+#include <arch/i686/idt.h>
+#include <arch/i686/irq_lock.h>
 
 // TODO: Add user pointer validation before dereferencing
 
@@ -37,6 +39,8 @@ static int syscall_write(interrupt_frame_t* frame) {
     const char* buf = (const char*)frame->ecx;
     size_t len = frame->edx;
 
+    interrupt_lock_t lock;
+
     if (!buf)
         return SYSCALL_ERROR;
 
@@ -45,7 +49,11 @@ static int syscall_write(interrupt_frame_t* frame) {
 
     if (fd == STDOUT_FD || fd == STDERR_FD) {
         for (size_t i = 0; i < len; i++)
+        {
+            lock_interrupts(&lock);
             putc(buf[i]);
+            unlock_interrupts(&lock);
+        }
         return (int)len;
     }
 
@@ -200,7 +208,7 @@ static syscall_func_t sys_table[SYSCALL_COUNT] = {
     [SYSCALL_OPEN]   = syscall_open,
     [SYSCALL_SBRK]   = syscall_sbrk,
     [SYSCALL_CLOSE]  = syscall_close,
-    [SYSCALL_fSTAT]  = syscall_fstat,
+    [SYSCALL_FSTAT]  = syscall_fstat,
     [SYSCALL_ISATTY] = syscall_isatty,
     [SYSCALL_LSEEK]  = syscall_lseek,
 };
@@ -208,7 +216,7 @@ static syscall_func_t sys_table[SYSCALL_COUNT] = {
 // SYSCALL HANDLER
 
 void syscall_handler(interrupt_frame_t* frame) {
-    // printf("%o[HD] syscall num %d\n", STD_COLOR_LIGHT_BLUE, frame->eax);
+    printf("%o[HD] syscall num %d\n", STD_COLOR_LIGHT_BLUE, frame->eax);
     uint32_t num = frame->eax;
     int ret = 1;
 

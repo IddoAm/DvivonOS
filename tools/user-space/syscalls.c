@@ -8,7 +8,7 @@
 #define SYSCALL_READ    2
 #define SYSCALL_SBRK    3
 #define SYSCALL_CLOSE   4
-#define SYSCALL_fSTAT   5
+#define SYSCALL_FSTAT   5
 #define SYSCALL_ISATTY  6
 #define SYSCALL_LSEEK   7
 #define SYSCALL_OPEN    8
@@ -58,7 +58,7 @@ int _close(int file) {
 }
 
 int _fstat(int file, struct stat *st) {
-    return do_syscall(SYSCALL_fSTAT, (uintptr_t)file, (uintptr_t)st, 0);
+    return do_syscall(SYSCALL_FSTAT, (uintptr_t)file, (uintptr_t)st, 0);
 }
 
 int _isatty(int file) {

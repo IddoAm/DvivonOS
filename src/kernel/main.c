@@ -109,7 +109,7 @@ void test_elf_loading() {
     printf("%oTesting ELF loading...\n", STD_COLOR_LIGHT_BLUE);
     add_elf_proc("/public-bin/C-test");
     add_elf_proc("/public-bin/test1");
-    add_elf_proc("/public-bin/test2");
+    // add_elf_proc("/public-bin/test2");
 
 }
 
@@ -143,83 +143,6 @@ void test_heap_allocator() {
 void init_hardware() {
     pic_clear_mask(1);
     clock_init(100); // 100 Hz
-}
-
-void create_and_schedule_user_process() {
-    printf("\n[PROCESS] Creating User Process...\n");
-    process_t* proc = (process_t*)kmalloc(sizeof(process_t));
-    
-    if (!proc) {
-        printf("%o[PANIC] Failed to allocate process struct\n", STD_COLOR_LIGHT_RED);
-        return;
-    }
-    memset(proc, 0, sizeof(*proc));
-
-    // 1. Initialize Process Structure
-    // Note: process_init now allocates a per-process kernel stack and updates TSS
-    printf("[DEBUG] Calling process_init with Entry Point: 0x%x\n", PROCESS_HEAP_START);
-    process_init(proc, (void*)PROCESS_HEAP_START);
-
-    if (!proc->context) {
-        printf("[PANIC] process_init failed to create context!\n");
-        return;
-    }
-
-    // 2. Prepare User Code and Data
-    const uint8_t user_code[] = {
-        0xB8, 0x01, 0x00, 0x00, 0x00,    // mov eax, 1
-        0xBB, 0x01, 0x00, 0x00, 0x00,    // mov ebx, 1
-        0xB9, 0x00, 0x00, 0x00, 0x00,    // mov ecx, <PLACEHOLDER>
-        0xBA, 0x10, 0x00, 0x00, 0x00,    // mov edx, 16 (Fixed length to include \n)
-        0xCD, 0x67,                      // int 0x67
-        0xEB, 0xE8                       // jmp short -24 (Fixed offset)
-    };
-    const char msg[] = "Hello from user\n"; 
-    const size_t code_len = sizeof(user_code);
-    const size_t msg_len = sizeof(msg) - 1;
-
-    // Calculate Addresses
-    const uint32_t code_vaddr = PROCESS_HEAP_START;
-    const uint32_t msg_vaddr = code_vaddr + (uint32_t)code_len;
-
-    // 3. Consolidate into a Single Payload
-    // This prevents the VMM from overwriting the page when loading the second part.
-    size_t total_payload_len = code_len + msg_len;
-    uint8_t* payload = (uint8_t*)kmalloc(total_payload_len);
-    if (!payload) {
-        printf("[PANIC] Failed to allocate payload buffer\n");
-        return;
-    }
-
-    // Copy code and message into the contiguous kernel buffer
-    memcpy(payload, user_code, code_len);
-    memcpy(payload + code_len, msg, msg_len);
-
-    // Patch the mov ecx instruction (at offset 11) with the message's virtual address
-    *(uint32_t*)&payload[11] = msg_vaddr;
-
-    printf("[DEBUG] Memory Layout:\n");
-    printf("        Code VAddr: 0x%x\n", code_vaddr);
-    printf("        Msg  VAddr: 0x%x\n", msg_vaddr);
-    printf("        Patched Addr in Payload: 0x%x\n", *(uint32_t*)&payload[11]);
-
-    // 4. Load into Address Space in One Shot
-    printf("[PROCESS] Loading consolidated payload into PD 0x%x...\n", proc->pd_phys);
-    
-    // We load the entire blob starting at the code's base address
-    if (!process_load_user_memory(proc, code_vaddr, payload, total_payload_len)) {
-        printf("[PANIC] Failed to load user memory!\n");
-        kfree((uintptr_t)payload);
-        return;
-    }
-    
-    // Free the temporary kernel buffer
-    kfree((uintptr_t)payload);
-    printf("[DEBUG] User memory loaded successfully.\n");
-
-    // 5. Handover to Scheduler
-    printf("[SCHEDULER] Adding process to queue...\n");
-    scheduler_add_process(proc);
 }
 
 void print_all_colors_test() {

@@ -8,6 +8,7 @@
 #include <drivers/vga.h>
 #include <lib/string.h>
 
+
 #define VGA_WIDTH 80
 #define VGA_HEIGHT 25
 #define VGA_MEMORY_HIGHER_HALF 0xC00B8000

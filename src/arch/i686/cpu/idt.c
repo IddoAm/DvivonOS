@@ -92,12 +92,8 @@ void isr_common_handler(interrupt_frame_t* frame) {
         }
     }
 
-    // If the interrupt was from IRQ8 or higher, we need to send an EOI to the slave PIC
-    if (frame->int_no >= IRQ_SLAVE_THRESHOLD) {
-        outb(PIC_SLAVE_CMD, PIC_EOI); // Send EOI to slave PIC
-    }
-    // Always send an EOI to the master PIC
-    outb(PIC_MASTER_CMD, PIC_EOI); // Send EOI to master PIC
+    if (frame->int_no >= 40) outb(0xA0, 0x20);
+    outb(0x20, 0x20);
 }
 
 void isr_register_handler(uint8_t num, interrupt_handler_t handler) {
