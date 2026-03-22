@@ -1,17 +1,18 @@
-#include <kernel/syscall.h>
-#include <lib/stdio.h>
-#include <kernel/scheduler/scheduler.h>
-#include <fs/vfs/file.h>
-#include <drivers/keyboard.h>
 #include <arch/i686/idt.h>
 #include <arch/i686/irq_lock.h>
+#include <drivers/keyboard.h>
+#include <fs/vfs/file.h>
+#include <kernel/scheduler/scheduler.h>
+#include <kernel/syscall.h>
+#include <lib/stdio.h>
 
 // TODO: Add user pointer validation before dereferencing
 
 typedef int (*syscall_func_t)(interrupt_frame_t* frame);
 
 static int _process_alloc_fd(process_t* proc, file_t* file) {
-    if (!proc || !file) return -1;
+    if (!proc || !file)
+        return -1;
     for (int fd = STDERR_FD + 1; fd < MAX_FDS; fd++) {
         if (!proc->fds[fd]) {
             proc->fds[fd] = file;
@@ -22,8 +23,10 @@ static int _process_alloc_fd(process_t* proc, file_t* file) {
 }
 
 static file_t* _process_get_fd(process_t* proc, int fd) {
-    if (!proc) return NULL;
-    if (fd <= STDERR_FD || fd >= MAX_FDS) return NULL;
+    if (!proc)
+        return NULL;
+    if (fd <= STDERR_FD || fd >= MAX_FDS)
+        return NULL;
     return proc->fds[fd];
 }
 
@@ -48,8 +51,7 @@ static int syscall_write(interrupt_frame_t* frame) {
         return 0;
 
     if (fd == STDOUT_FD || fd == STDERR_FD) {
-        for (size_t i = 0; i < len; i++)
-        {
+        for (size_t i = 0; i < len; i++) {
             lock_interrupts(&lock);
             putc(buf[i]);
             unlock_interrupts(&lock);
@@ -58,7 +60,8 @@ static int syscall_write(interrupt_frame_t* frame) {
     }
 
     file_t* f = _process_get_fd(get_current_process(), fd);
-    if (!f) return SYSCALL_ERROR;
+    if (!f)
+        return SYSCALL_ERROR;
 
     return file_write(f, buf, len);
 }
@@ -75,7 +78,7 @@ static int syscall_read(interrupt_frame_t* frame) {
         return 0;
 
     if (fd == STDIN_FD) {
-        size_t i = 0;
+        int i = 0;
         while (i < len) {
             key_event ev;
             while (!keyboard_read(&ev)) {
@@ -83,9 +86,12 @@ static int syscall_read(interrupt_frame_t* frame) {
             }
             if (!ev.pressed)
                 continue;
+
             if (ev.ascii == 0)
-            {
-                if (ev.code == KC_BSPC && i > 0) {
+                continue;
+
+            if (ev.code == KC_BSPC) {
+                if (i > 0) {
                     buf[--i] = '\0';
                     printf("\b \b");
                 }
@@ -101,11 +107,11 @@ static int syscall_read(interrupt_frame_t* frame) {
     }
 
     file_t* f = _process_get_fd(get_current_process(), fd);
-    if (!f) return SYSCALL_ERROR;
+    if (!f)
+        return SYSCALL_ERROR;
 
     return file_read(f, buf, len);
 }
-
 
 static int syscall_open(interrupt_frame_t* frame) {
     const char* path = (const char*)frame->ebx;
@@ -167,7 +173,6 @@ static int syscall_sbrk(interrupt_frame_t* frame) {
     return (int)old_brk;
 }
 
-
 static int syscall_close(interrupt_frame_t* frame) {
     int fd = (int)frame->ebx;
     process_t* proc = get_current_process();
@@ -188,7 +193,6 @@ static int syscall_fstat(interrupt_frame_t* frame) {
     return SYSCALL_SUCCESS;
 }
 
-
 // ebx=fd   returns 1 for stdin/stdout/stderr, 0 otherwise
 static int syscall_isatty(interrupt_frame_t* frame) {
     uint32_t fd = frame->ebx;
@@ -202,15 +206,11 @@ static int syscall_lseek(interrupt_frame_t* frame) {
 }
 
 static syscall_func_t sys_table[SYSCALL_COUNT] = {
-    [SYSCALL_EXIT]   = syscall_exit,
-    [SYSCALL_WRITE]  = syscall_write,
-    [SYSCALL_READ]   = syscall_read,
-    [SYSCALL_OPEN]   = syscall_open,
-    [SYSCALL_SBRK]   = syscall_sbrk,
-    [SYSCALL_CLOSE]  = syscall_close,
-    [SYSCALL_FSTAT]  = syscall_fstat,
-    [SYSCALL_ISATTY] = syscall_isatty,
-    [SYSCALL_LSEEK]  = syscall_lseek,
+    [SYSCALL_EXIT] = syscall_exit,   [SYSCALL_WRITE] = syscall_write,
+    [SYSCALL_READ] = syscall_read,   [SYSCALL_OPEN] = syscall_open,
+    [SYSCALL_SBRK] = syscall_sbrk,   [SYSCALL_CLOSE] = syscall_close,
+    [SYSCALL_FSTAT] = syscall_fstat, [SYSCALL_ISATTY] = syscall_isatty,
+    [SYSCALL_LSEEK] = syscall_lseek,
 };
 
 // SYSCALL HANDLER
@@ -228,7 +228,6 @@ void syscall_handler(interrupt_frame_t* frame) {
 
     frame->eax = (uint32_t)ret;
 }
-
 
 void syscall_init() {
     isr_register_handler(SYSCALL_INT, syscall_handler);
