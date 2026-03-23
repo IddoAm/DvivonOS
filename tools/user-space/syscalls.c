@@ -98,7 +98,7 @@ int wait_pid(int pid) {
     return do_syscall(SYSCALL_WAIT, (uintptr_t)pid, 0, 0);
 }
 
-int mkdir(char* abs_path) {
+int create_dir(char* abs_path) {
     return do_syscall(SYSCALL_MKDIR, (uintptr_t)abs_path, 0, 0);
 }
 

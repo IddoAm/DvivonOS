@@ -355,7 +355,7 @@ static int syscall_wait(interrupt_frame_t* frame) {
 
 static int syscall_mkdir(interrupt_frame_t* frame)
 {
-    char* abs_path = frame->ebx;
+    char* abs_path = (char*) frame->ebx;
     return fs_create_dir(abs_path) == FS_OK ? SYSCALL_SUCCESS : SYSCALL_ERROR;
 }
 

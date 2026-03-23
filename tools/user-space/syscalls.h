@@ -2,6 +2,7 @@
 #define SYSCALLS_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 // Args struct for create_proc_by_elf syscall
 typedef struct {
@@ -22,7 +23,7 @@ typedef struct {
 int  create_proc_by_elf(const proc_create_args_t* args);
 int  ps(uint32_t* buf, int max_entries);
 int  wait_pid(int pid);
-int mkdir(char* abs_path);
+int create_dir(char* abs_path);
 // pid=0 means current process
 int  procstat(int pid, proc_stat_t* out);
 

@@ -107,7 +107,7 @@ static void builtin_mkdir(const char* dir) {
     char resolved[256];
     resolve_path(dir, resolved, sizeof(resolved));
     
-    if (mkdir(resolved) != 0)
+    if (create_dir(resolved) != 0)
         printf("mkdir: failed: %s\n", resolved);
 
 }
