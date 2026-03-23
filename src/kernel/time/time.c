@@ -8,9 +8,26 @@
 #define PIT_FREQUENCY 1193180
 
 volatile uint64_t system_ticks = 0;
+static timer_event_t* event_list = NULL;
 
 void timer_interrupt_handler(interrupt_frame_t* frame) {
     system_ticks++;
+
+    while (event_list && system_ticks >= event_list->target_tick) {
+        timer_event_t* event = event_list;
+        
+        // Remove from list first
+        event_list = event->next;
+
+        // Run the task
+        if (event->callback) {
+            event->callback(event->data);
+        }
+
+        // We free it here because the "timer" own the memory 
+        // once it has been registered.
+        kfree((uintptr_t)event);
+    }
 }
 
 uint64_t get_ticks(){
@@ -33,3 +50,45 @@ void clock_init(uint32_t frequency) {
     pic_clear_mask(0); // Unmask IRQ0 (PIT)
 }
 
+timer_event_t* register_timer_event(uint64_t delay, timer_callback_t callback, void* data) {
+    timer_event_t* event = (timer_event_t*)kmalloc(sizeof(timer_event_t));
+    if (!event) return NULL;
+
+    event->target_tick = get_ticks() + delay;
+    event->callback = callback;
+    event->data = data;
+    event->next = NULL;
+
+    if (!event_list || event->target_tick < event_list->target_tick) {
+        event->next = event_list;
+        event_list = event;
+    } else {
+        timer_event_t* curr = event_list;
+        while (curr->next && curr->next->target_tick < event->target_tick) {
+            curr = curr->next;
+        }
+        event->next = curr->next;
+        curr->next = event;
+    }
+
+    return event;
+}
+
+void unregister_timer_event(timer_event_t* event) {
+    if (!event || !event_list) return;
+
+    if (event_list == event) {
+        event_list = event->next;
+    } else {
+        timer_event_t* curr = event_list;
+        while (curr->next && curr->next != event) {
+            curr = curr->next;
+        }
+
+        if (curr->next == event) {
+            curr->next = event->next;
+        }
+    }
+
+    kfree((uintptr_t)event);
+}

@@ -13,7 +13,7 @@ static uint32_t next_pid = 1;
 static process_t* current_process = NULL;
 static process_t* process_list = NULL;
 static volatile uint32_t current_process_ticks = 0;
-static scheduler_state state = SCHED_STATE_OFF;
+static scheduler_state_t state = SCHED_STATE_OFF;
 
 extern void switch_to_stack(uint32_t* old_esp, uint32_t new_esp);
 extern void fork_ret(void);
@@ -97,6 +97,8 @@ void process_init(process_t* p, void (*entry)(void)) {
     // Zero the process structure and set PID
     memset(p, 0, sizeof(process_t));
     *(uint32_t*)&p->pid = next_pid++;
+
+    p->state = PROCESS_STATE_READY;
 
     uint32_t kstack = kmalloc(PAGE_SIZE * 2);
     if (!kstack) {
@@ -187,6 +189,10 @@ void process_exit(process_t* proc, interrupt_frame_t* frame) {
         for (;;) asm volatile("hlt");
     }
 
+    if(proc->state == PROCESS_STATE_SLEEPING) {
+        unregister_timer_event(proc->sleep_event);
+    }
+
     // Unlink from circular list
     process_t* p = process_list;
     while (p->next != proc && p->next != process_list)
@@ -220,6 +226,32 @@ void process_exit(process_t* proc, interrupt_frame_t* frame) {
     vmm_destroy_address_space(proc->pd_phys);
     kfree((uintptr_t)proc->kernel_stack_base);
     kfree((uintptr_t)proc);
+}
+
+void process_yield(void) {
+    current_process_ticks = PROCESS_MAX_TICKS;
+    
+    // Trigger your timer interrupt vector. 
+    asm volatile("int $0x20"); 
+}
+
+void process_wake(process_t* proc) {
+    proc->state = PROCESS_STATE_READY;
+    proc->sleep_event = NULL;
+}
+
+void process_wake_callback(void* data) {
+    if(!data) return;
+
+    process_wake((process_t*)data);
+}
+
+void process_sleep(uint32_t ticks) {
+    if (!current_process) return;
+
+    current_process->state = PROCESS_STATE_SLEEPING;
+    current_process->sleep_event = register_timer_event(ticks, process_wake_callback, (void*)current_process);
+    process_yield();
 }
 
 process_t* get_current_process(void) {
