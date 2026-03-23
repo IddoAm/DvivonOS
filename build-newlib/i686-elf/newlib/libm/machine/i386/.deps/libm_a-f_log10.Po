@@ -1,4 +1,0 @@
-libm/machine/i386/libm_a-f_log10.o: \
- ../../../newlib-cygwin/newlib/libm/machine/i386/f_log10.S \
- ../../../newlib-cygwin/newlib/libm/machine/i386/i386mach.h
-../../../newlib-cygwin/newlib/libm/machine/i386/i386mach.h:
