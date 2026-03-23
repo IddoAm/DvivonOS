@@ -19,6 +19,30 @@ static scheduler_state state = SCHED_STATE_OFF;
 extern void switch_to_stack(uint32_t* old_esp, uint32_t new_esp);
 extern void fork_ret(void);
 
+static void kernel_panic(const char* msg, interrupt_frame_t* frame) {
+    printf("%o[KERNEL PANIC] %s\n", STD_COLOR_LIGHT_RED, msg);
+    printf("  int=%d err=0x%x eip=0x%x cs=0x%x\n",
+           frame->int_no, frame->err_code, frame->eip, frame->cs);
+    for (;;) asm volatile("hlt");
+}
+
+void process_crash_handler(interrupt_frame_t* frame) {
+    // Double fault and machine check always panic regardless of origin
+    if (frame->int_no == 8 || frame->int_no == 18) {
+        kernel_panic("fatal CPU exception", frame);
+    }
+
+    if ((frame->cs & 0x3) == 3) {
+        process_t* proc = get_current_process();
+        printf("%o[CRASH] process %d faulted: int=%d err=0x%x eip=0x%x\n",
+               STD_COLOR_LIGHT_RED, proc->pid,
+               frame->int_no, frame->err_code, frame->eip);
+        process_exit(proc, frame);
+    } else {
+        kernel_panic("exception in kernel", frame);
+    }
+}
+
 // Must be called within an interrupt context
 void context_switch(process_t* from, process_t* to) {
     // printf("%ofrom %d to %d", STD_COLOR_CYAN, from->pid, to->pid);
@@ -71,6 +95,24 @@ void scheduler_init() {
         return;
 
     isr_register_handler(irq_to_vector(0), (interrupt_handler_t)schedule);
+
+    // Register crash handler for all fatal CPU exceptions (vectors 0-31, no irq_to_vector)
+    isr_register_handler(0,  (interrupt_handler_t)process_crash_handler); // #DE divide by zero
+    isr_register_handler(4,  (interrupt_handler_t)process_crash_handler); // #OF overflow
+    isr_register_handler(5,  (interrupt_handler_t)process_crash_handler); // #BR bound range
+    isr_register_handler(6,  (interrupt_handler_t)process_crash_handler); // #UD invalid opcode
+    isr_register_handler(8,  (interrupt_handler_t)process_crash_handler); // #DF double fault
+    isr_register_handler(10, (interrupt_handler_t)process_crash_handler); // #TS invalid TSS
+    isr_register_handler(11, (interrupt_handler_t)process_crash_handler); // #NP segment not present
+    isr_register_handler(12, (interrupt_handler_t)process_crash_handler); // #SS stack fault
+    isr_register_handler(13, (interrupt_handler_t)process_crash_handler); // #GP general protection
+    isr_register_handler(14, (interrupt_handler_t)process_crash_handler); // #PF page fault
+    isr_register_handler(16, (interrupt_handler_t)process_crash_handler); // #MF x87 FPU error
+    isr_register_handler(17, (interrupt_handler_t)process_crash_handler); // #AC alignment check
+    isr_register_handler(18, (interrupt_handler_t)process_crash_handler); // #MC machine check
+    isr_register_handler(19, (interrupt_handler_t)process_crash_handler); // #XF SIMD FP exception
+    isr_register_handler(20, (interrupt_handler_t)process_crash_handler); // #VE virtualization
+
     state = SCHED_STATE_STARTING;
     
         for (;;)

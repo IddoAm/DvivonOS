@@ -62,5 +62,6 @@ process_t* get_current_process(void);
 process_t* scheduler_find_process(uint32_t pid);
 void process_yield(void);
 process_t* scheduler_get_list(void);
+void process_crash_handler(interrupt_frame_t* frame);
 
 #endif
