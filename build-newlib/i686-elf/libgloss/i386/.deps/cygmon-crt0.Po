@@ -1,1 +1,0 @@
-i386/cygmon-crt0.o: ../../../newlib-cygwin/libgloss/i386/cygmon-crt0.S

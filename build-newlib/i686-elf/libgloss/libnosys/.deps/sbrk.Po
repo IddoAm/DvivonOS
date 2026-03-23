@@ -1,4 +1,0 @@
-libnosys/sbrk.o: ../../../newlib-cygwin/libgloss/libnosys/sbrk.c config.h \
- /home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/_syslist.h
-config.h:
-/home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/_syslist.h:

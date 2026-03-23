@@ -1,4 +1,0 @@
-libc/machine/i386/libc_a-strchr.o: \
- ../../../newlib-cygwin/newlib/libc/machine/i386/strchr.S \
- ../../../newlib-cygwin/newlib/libc/machine/i386/i386mach.h
-../../../newlib-cygwin/newlib/libc/machine/i386/i386mach.h:

@@ -1,4 +1,0 @@
-libm/machine/i386/libm_a-f_ldexpf.o: \
- ../../../newlib-cygwin/newlib/libm/machine/i386/f_ldexpf.S \
- ../../../newlib-cygwin/newlib/libm/machine/i386/i386mach.h
-../../../newlib-cygwin/newlib/libm/machine/i386/i386mach.h:
