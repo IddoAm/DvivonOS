@@ -97,8 +97,15 @@ void isr_common_handler(interrupt_frame_t* frame) {
 }
 
 void isr_register_handler(uint8_t num, interrupt_handler_t handler) {
-    isr_table_start[num * MAX_HANDELERS_PER_INTURRUPT] = (uint32_t)handler;
+    for (int i = 0; i < MAX_HANDELERS_PER_INTURRUPT; i++) {
+        if (isr_table_start[num * MAX_HANDELERS_PER_INTURRUPT + i] == 0) {
+            isr_table_start[num * MAX_HANDELERS_PER_INTURRUPT + i] = (uint32_t)handler;
+            return;
+        }
+    }
+    printf("isr_register_handler: no free slot for vector %d\n", num);
 }
+
 void isr_unregister_handler(uint8_t num, interrupt_handler_t handler) {
     for (int i = 0; i < MAX_HANDELERS_PER_INTURRUPT; i++) {
         if ((interrupt_handler_t)isr_table_start[num * MAX_HANDELERS_PER_INTURRUPT + i] ==

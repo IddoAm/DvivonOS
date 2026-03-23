@@ -6,6 +6,7 @@
 #include <kernel/vmm.h>
 #include <kernel/heap-allocator.h>
 #include <fs/vfs/file.h>
+#include <kernel/time/time.h>
 
 #define PROCESS_HEAP_START 0x00601000
 
@@ -22,7 +23,12 @@ typedef enum {
     SCHED_STATE_READY = 1,
     SCHED_STATE_STARTING = 2,
     SCHED_STATE_RUNNING = 3,
-} scheduler_state; //TODO: think if it need to end with _t
+} scheduler_state_t; 
+
+typedef enum {
+    PROCESS_STATE_READY = 0,
+    PROCESS_STATE_SLEEPING = 1,
+} process_state_t;
 
 typedef struct process {
     const uint32_t pid;
@@ -35,6 +41,9 @@ typedef struct process {
 
     file_t* fds[MAX_FDS];
     uint32_t kernel_stack_base; 
+
+    process_state_t state;
+    timer_event_t* sleep_event;
 
     struct process* next;
 } process_t;
