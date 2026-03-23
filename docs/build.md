@@ -14,7 +14,7 @@
   ```
   now we can build it with the following command (adjust paths as needed):
   ```bash
-  export PATH="$HOME/opt/cross/bin:$PATH
+  export PATH="$HOME/opt/cross/bin:$PATH"
 
 
   ../newlib-cygwin/configure --target=i686-elf \
