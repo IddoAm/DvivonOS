@@ -4,6 +4,7 @@
 #include <arch/i686/ports.h>
 #include <kernel/time/time.h>
 #include <lib/stdio.h>
+#include <kernel/heap-allocator.h>
 
 #define PIT_FREQUENCY 1193180
 
@@ -15,17 +16,13 @@ void timer_interrupt_handler(interrupt_frame_t* frame) {
 
     while (event_list && system_ticks >= event_list->target_tick) {
         timer_event_t* event = event_list;
-        
-        // Remove from list first
+
         event_list = event->next;
 
-        // Run the task
         if (event->callback) {
             event->callback(event->data);
         }
 
-        // We free it here because the "timer" own the memory 
-        // once it has been registered.
         kfree((uintptr_t)event);
     }
 }

@@ -278,27 +278,40 @@ uint32_t vmm_create_address_space(void) {
 }
 
 void vmm_destroy_address_space(uint32_t pd_phys) {
-    vmm_set_pde_at(PD_WINDOW, PD_SCRATCH_WINDOW, pd_phys, PAGE_PRESENT | PAGE_RW);
+    uint32_t* current_pd = (uint32_t*)PD_WINDOW;
 
+    // 1. Map the victim's PD into scratch slot 1022 → PD_SCRATCH_WINDOW
+    current_pd[1022] = pd_phys | PAGE_PRESENT | PAGE_RW;
+    vmm_invlpg((void*)PD_SCRATCH_WINDOW);
+    uint32_t* victim_pd = (uint32_t*)PD_SCRATCH_WINDOW;
 
-    uint32_t* victim_pd = (uint32_t*)PD_SCRATCH_WINDOW; // The PD via recursive mapping
-    uint32_t* victim_pts = (uint32_t*)PTS_SCRATCH_WINDOW; // The PTs via recursive mapping
-
-    // Loop through User-space entries only
+    // 2. Loop through user-space PDEs (0–767)
     for (uint32_t i = 0; i < 768; i++) {
-        if (victim_pd[i] & PAGE_PRESENT) {
-            uint32_t* pt = &victim_pts[i * 1024];
+        if (!(victim_pd[i] & PAGE_PRESENT))
+            continue;
 
-            for (uint32_t j = 0; j < 1024; j++) {
-                if (pt[j] & PAGE_PRESENT) {
-                    pmm_free_page(pt[j] & 0xFFFFF000);
-                }
+        uint32_t pt_phys = victim_pd[i] & PAGE_FRAME_MASK;
+
+        // 3. Map this PT into scratch slot 1021 → PTS_SCRATCH_WINDOW
+        current_pd[1021] = pt_phys | PAGE_PRESENT | PAGE_RW;
+        vmm_invlpg((void*)PTS_SCRATCH_WINDOW);
+        uint32_t* pt_virt = (uint32_t*)PTS_SCRATCH_WINDOW;
+
+        // 4. Free all physical pages this PT maps
+        for (uint32_t j = 0; j < 1024; j++) {
+            if (pt_virt[j] & PAGE_PRESENT) {
+                pmm_free_page(pt_virt[j] & PAGE_FRAME_MASK);
             }
-
-            pmm_free_page(victim_pd[i] & 0xFFFFF000);
         }
+
+        // 5. Unmap scratch PT slot and free the PT's physical page
+        current_pd[1021] = 0;
+        vmm_invlpg((void*)PTS_SCRATCH_WINDOW);
+        pmm_free_page(pt_phys);
     }
 
-    vmm_set_pte_at(PD_WINDOW, PD_SCRATCH_WINDOW, 0, 0); 
+    // 6. Unmap scratch PD slot and free the PD's physical page
+    current_pd[1022] = 0;
+    vmm_invlpg((void*)PD_SCRATCH_WINDOW);
     pmm_free_page(pd_phys);
 }
