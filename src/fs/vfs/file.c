@@ -94,6 +94,7 @@ int file_write(file_t *file, const void *buf, size_t count)
 int file_seek(file_t *file, uint32_t offset)
 {
     if (!file) return -1;
+    if (offset > file->inode->size) return -1;
     file->offset = offset;
     return (int)offset;
 }

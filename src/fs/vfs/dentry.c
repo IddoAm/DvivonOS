@@ -84,11 +84,11 @@ inode_t *path_lookup_relative(inode_t *start, const char *path)
     if (!start || !path) return NULL;
 
     inode_t *current = start;
-    inode_get(current);
-
+    
     char component[256];
-
+    
     while (*path) {
+        inode_get(current);
         /* Skip slashes */
         while (*path == '/') path++;
         if (*path == '\0') break;

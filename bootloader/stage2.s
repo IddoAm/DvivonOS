@@ -202,7 +202,6 @@ load_kernel_temp:
     popa
     ret
 
-# This function is no longer needed - we load directly to 0x100000
 
 # Read sectors from disk
 # AL = number of sectors, CL = starting sector, BX = buffer address, DL = drive
