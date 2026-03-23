@@ -31,38 +31,6 @@
 
 #include <lib/fs.h>
 
-void user_space_loop() {
-    while (true) {
-
-        printf("Hello from User Space");
-        for (volatile int i = 0; i < 10000000; i++);
-    }
-}
-
-void dump_page_directory() {
-    uint32_t* pd = (uint32_t*)0xFFFFF000;
-    
-    printf("--- Page Directory Dump ---\n");
-    for (int i = 0; i < 768; i++) {
-        // Only print entries that are "Present" (bit 0 is set)
-        if (pd[i] & 1) {
-            printf("PDE [%d]: 0x%x + +", i, pd[i]);
-        }
-    }
-}
-
-static int do_syscall_write(int fd, const char* buf, size_t len) {
-    uint32_t ret;
-    __asm__ volatile(
-        "int $0x67"
-        : "=a"(ret)
-        : "a"((uint32_t)SYSCALL_WRITE), "b"((uint32_t)fd), "c"((uint32_t)buf), "d"((uint32_t)len)
-        : "memory"
-    );
-    return (int)ret;
-}
-
-
 void init_keyboard() {
     isr_register_handler(irq_to_vector(1), keyboard_callback);
 }

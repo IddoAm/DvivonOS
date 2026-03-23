@@ -283,12 +283,12 @@ int ata_read_sectors(uint32_t lba, uint32_t count, uint16_t *buffer) {
         
         for (i = 0; i < chunk; i++) {
             ata_wait_irq();
-            ata_read_pio_data(buffer);
-            buffer += ATA_SECTOR_WORDS;
-            
             /* Arm for the next sector's IRQ (skip after the last one) */
             if (i + 1 < chunk)
-            ata_prepare_irq();
+                ata_prepare_irq();
+                
+            ata_read_pio_data(buffer);
+            buffer += ATA_SECTOR_WORDS;
         }
 
         count -= chunk;

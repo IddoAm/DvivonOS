@@ -137,6 +137,5 @@ if [ "$GDB" -eq 1 ]; then
   kill $QEMU_PID 
 else
   echo "[INFO] Starting QEMU..."
-  sleep 1
   "$SCRIPT_DIR/run_qemu.sh" "${QEMU_ARGS[@]}"
 fi
