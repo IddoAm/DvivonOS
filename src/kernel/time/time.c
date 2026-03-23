@@ -9,19 +9,12 @@
 
 volatile uint64_t system_ticks = 0;
 
-#define MAX_TIMER_CALLBACKS 16
-static timer_callback_t callbacks[MAX_TIMER_CALLBACKS];
-static int callback_count = 0;
-
 void timer_interrupt_handler(interrupt_frame_t* frame) {
     system_ticks++;
+}
 
-    // Call registered callbacks
-    for (int i = 0; i < callback_count; i++) {
-        if (callbacks[i]) {
-            callbacks[i](system_ticks);
-        }
-    }
+uint64_t get_ticks(){
+    return system_ticks;
 }
 
 void clock_init(uint32_t frequency) {
@@ -40,24 +33,3 @@ void clock_init(uint32_t frequency) {
     pic_clear_mask(0); // Unmask IRQ0 (PIT)
 }
 
-int register_timer_callback(timer_callback_t callback) {
-    if (callback_count >= MAX_TIMER_CALLBACKS) {
-        return 1; // Error: maximum callbacks reached
-    }
-
-    callbacks[callback_count++] = callback;
-    return 0;
-}
-
-void unregister_timer_callback(timer_callback_t callback) {
-    for (int i = 0; i < callback_count; i++) {
-        if (callbacks[i] == callback) {
-            // Shift remaining callbacks down
-            for (int j = i; j < callback_count - 1; j++) {
-                callbacks[j] = callbacks[j + 1];
-            }
-            callbacks[--callback_count] = 0;
-            return;
-        }
-    }
-}

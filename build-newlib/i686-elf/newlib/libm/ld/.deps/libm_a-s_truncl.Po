@@ -1,0 +1,52 @@
+libm/ld/libm_a-s_truncl.o: \
+ ../../../newlib-cygwin/newlib/libm/ld/s_truncl.c \
+ /home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/sys/cdefs.h \
+ /home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/machine/_default_types.h \
+ /home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/sys/features.h \
+ _newlib_version.h \
+ /home/iddo/cross-i686/lib/gcc/i686-elf/15.2.0/include/stddef.h \
+ /home/iddo/cross-i686/lib/gcc/i686-elf/15.2.0/include/float.h \
+ /home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/math.h \
+ /home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/sys/reent.h \
+ /home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/_ansi.h \
+ newlib.h \
+ /home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/sys/config.h \
+ /home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/machine/ieeefp.h \
+ /home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/sys/_types.h \
+ /home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/machine/_types.h \
+ /home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/sys/lock.h \
+ /home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/assert.h \
+ /home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/_ansi.h \
+ /home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/stdint.h \
+ /home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/sys/_intsup.h \
+ /home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/sys/_stdint.h \
+ ../../../newlib-cygwin/newlib/libm/ld/fpmath.h \
+ /home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/sys/endian.h \
+ /home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/machine/endian.h \
+ /home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/machine/_endian.h \
+ /home/iddo/Projects/os/build-newlib/i686-elf/newlib/targ-include/machine/_fpmath.h
+/home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/sys/cdefs.h:
+/home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/machine/_default_types.h:
+/home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/sys/features.h:
+_newlib_version.h:
+/home/iddo/cross-i686/lib/gcc/i686-elf/15.2.0/include/stddef.h:
+/home/iddo/cross-i686/lib/gcc/i686-elf/15.2.0/include/float.h:
+/home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/math.h:
+/home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/sys/reent.h:
+/home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/_ansi.h:
+newlib.h:
+/home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/sys/config.h:
+/home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/machine/ieeefp.h:
+/home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/sys/_types.h:
+/home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/machine/_types.h:
+/home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/sys/lock.h:
+/home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/assert.h:
+/home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/_ansi.h:
+/home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/stdint.h:
+/home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/sys/_intsup.h:
+/home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/sys/_stdint.h:
+../../../newlib-cygwin/newlib/libm/ld/fpmath.h:
+/home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/sys/endian.h:
+/home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/machine/endian.h:
+/home/iddo/Projects/os/newlib-cygwin/newlib/libc/include/machine/_endian.h:
+/home/iddo/Projects/os/build-newlib/i686-elf/newlib/targ-include/machine/_fpmath.h:
