@@ -75,19 +75,32 @@ void start_the_fs(void){
         printf("[fs] No filesystem available (no IDE disk or no ext2)\n");
 }
 
-void add_elf_proc(char* path)
+void add_elf_proc(const char* path)
 {
     int size = fs_file_size(path);
-    printf("File size: %d\n", size);
-    void* buffer = (void*)kmalloc(size);
-    fs_read_file(path, buffer, size);
-    if (load_elf(buffer, size) != 0) {
-        printf("%oELF verification failed!\n", STD_COLOR_LIGHT_RED);
-        kfree((uintptr_t)buffer);
+    if (size <= 0) {
+        printf("%oCan't find: %s\n", STD_COLOR_LIGHT_RED, path);
         return;
     }
-    printf("%oELF verification succeeded!\n", STD_COLOR_LIGHT_GREEN);
+    void* buffer = (void*)kmalloc(size);
+    if (!buffer) {
+        printf("%okmalloc failed for %s\n", STD_COLOR_LIGHT_RED, path);
+        return;
+    }
+    fs_read_file(path, buffer, size);
+    process_t* p = load_elf(buffer, size, 0, NULL, "/");
     kfree((uintptr_t)buffer);
+    if (!p) {
+        printf("%oELF load failed: %s\n", STD_COLOR_LIGHT_RED, path);
+        return;
+    }
+    // Set name from basename (cwd already set to "/" by process_init)
+    const char* name = path;
+    for (const char* s = path; *s; s++)
+        if (*s == '/') name = s + 1;
+    strncpy(p->name, name, PROCESS_NAME_MAX - 1);
+    printf("%oLoaded: %s (PID %d)\n", STD_COLOR_LIGHT_GREEN, path, p->pid);
+    scheduler_add_process(p);
 }
 
 void print_memory_regions() {
@@ -105,12 +118,9 @@ void print_memory_regions() {
     }
 }
 
-void test_elf_loading() {
-    printf("%oTesting ELF loading...\n", STD_COLOR_LIGHT_BLUE);
-    add_elf_proc("/public-bin/C-test");
-    add_elf_proc("/public-bin/test1");
-    // add_elf_proc("/public-bin/test2");
-
+static void _start_init(void) {
+    printf("%oStarting init process...\n", STD_COLOR_LIGHT_BLUE);
+    add_elf_proc("/public-bin/init");
 }
 
 void init_memory_management() {
@@ -158,8 +168,7 @@ void _run_tests()
     print_memory_regions();
     test_heap_allocator();
     print_all_colors_test();
-    test_elf_loading();
-
+    _start_init();
 }
 
 void main_loop() {

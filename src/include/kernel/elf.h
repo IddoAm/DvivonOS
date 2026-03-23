@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <kernel/scheduler/scheduler.h>
 
 typedef struct {
     uint8_t  ident[16];   // Magic number and other info
@@ -32,6 +33,9 @@ typedef struct {
     uint32_t align;
 } elf_program_header_t;
 
-int load_elf(void* buffer, uint32_t size);
+// Returns the newly created process_t* on success, NULL on failure.
+// Does NOT call scheduler_add_process() — caller must do that.
+process_t* load_elf(void* buffer, uint32_t size,
+                    int argc, const char** argv, const char* cwd);
 
 #endif // ELF_LOADING_H

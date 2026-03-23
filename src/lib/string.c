@@ -1,4 +1,5 @@
 #include <lib/string.h>
+#include "string.h"
 
 // compare beatwean tow memories
 int memcmp(const void* aptr, const void* bptr, size_t size) {
@@ -75,4 +76,12 @@ int strncmp(const char *s1, const char *s2, size_t n)
     if (n == 0)
         return 0;
     return *(const unsigned char *)s1 - *(const unsigned char *)s2;
+}
+
+char* strncpy(char* dest, const char* src, size_t n) {
+    size_t i = 0;
+    char *original_dest = dest;
+    
+    while ( n <= i++ && (*dest++ = *src++) != '\0');
+    return original_dest;
 }

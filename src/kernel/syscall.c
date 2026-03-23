@@ -2,9 +2,14 @@
 #include <arch/i686/irq_lock.h>
 #include <drivers/keyboard.h>
 #include <fs/vfs/file.h>
+#include <fs/vfs/inode.h>
+#include <kernel/elf.h>
+#include <kernel/heap-allocator.h>
 #include <kernel/scheduler/scheduler.h>
 #include <kernel/syscall.h>
 #include <lib/stdio.h>
+#include <lib/string.h>
+#include <lib/fs.h>
 
 // TODO: Add user pointer validation before dereferencing
 
@@ -199,18 +204,177 @@ static int syscall_isatty(interrupt_frame_t* frame) {
     return (fd <= 2) ? 1 : 0;
 }
 
-// ebx=fd  ecx=offset  edx=whence   returns 0 (terminal, no seek)
+// ebx=fd  ecx=offset  edx=whence
 static int syscall_lseek(interrupt_frame_t* frame) {
-    // TODO: implement this
+    int fd          = (int)frame->ebx;
+    int32_t offset  = (int32_t)frame->ecx;
+    int whence      = (int)frame->edx;
+
+    file_t* f = _process_get_fd(get_current_process(), fd);
+    if (!f) return SYSCALL_ERROR;
+
+    uint32_t size = f->inode ? f->inode->size : 0;
+    switch (whence) {
+        case 0: f->offset = (uint32_t)offset; break;                            // SEEK_SET
+        case 1: f->offset = (uint32_t)((int32_t)f->offset + offset); break;     // SEEK_CUR
+        case 2: f->offset = (uint32_t)((int32_t)size + offset); break;          // SEEK_END
+        default: return SYSCALL_ERROR;
+    }
+    return (int)f->offset;
+}
+
+// ebx=pid
+static int syscall_kill(interrupt_frame_t* frame) {
+    uint32_t pid = (uint32_t)frame->ebx;
+    process_t* cur = get_current_process();
+    if (cur->pid == pid) {
+        process_exit(cur, frame);   // never returns
+        return SYSCALL_SUCCESS;     // unreachable
+    }
+    process_t* target = scheduler_find_process(pid);
+    if (!target) return SYSCALL_ERROR;
+    process_exit(target, frame);    // non-current: frees memory, no context switch
     return SYSCALL_SUCCESS;
 }
 
+// Kernel-side mirror of userspace proc_create_args_t (must stay in sync with syscalls.h)
+typedef struct {
+    const char*  path;
+    int          argc;
+    const char** argv;
+    const char*  cwd;
+} proc_create_args_t;
+
+// ebx=pointer to proc_create_args_t   returns new PID or -1
+static int syscall_create_proc(interrupt_frame_t* frame) {
+    const proc_create_args_t* uargs = (const proc_create_args_t*)frame->ebx;
+    if (!uargs || !uargs->path) return SYSCALL_ERROR;
+
+    file_t* f = file_open(uargs->path, FILE_FLAG_READ);
+    if (!f) return SYSCALL_ERROR;
+
+    uint32_t size = f->inode ? f->inode->size : 0;
+    if (size == 0) { file_close(f); return SYSCALL_ERROR; }
+
+    void* buf = (void*)kmalloc(size);
+    if (!buf) { file_close(f); return SYSCALL_ERROR; }
+
+    file_read(f, buf, size);
+    file_close(f);
+
+    process_t* p = load_elf(buf, size,
+                            uargs->argc,
+                            (const char**)uargs->argv,
+                            uargs->cwd ? uargs->cwd : "/");
+    kfree((uintptr_t)buf);
+    if (!p) return SYSCALL_ERROR;
+
+    p->parent_pid = get_current_process()->pid;
+
+    // Set process name from basename of path
+    const char* name = uargs->path;
+    int name_len = strlen(name);
+    if (name_len > 1 && uargs->path[0] == '/')
+    {
+        int start = name_len - 1;
+        while (name[start] != '/') start--;
+        name += start + 1;
+    }
+    strncpy(p->name, name, PROCESS_NAME_MAX - 1);
+
+    scheduler_add_process(p);
+    return (int)p->pid;
+}
+
+
+
+// ebx=uint32_t* buf   ecx=max_entries   returns count written or -1
+static int syscall_ps(interrupt_frame_t* frame) {
+    uint32_t* buf = (uint32_t*)frame->ebx;
+    int max = (int)frame->ecx;
+    if (!buf || max <= 0) return SYSCALL_ERROR;
+
+    int count = 0;
+    process_t* list = scheduler_get_list();
+    if (!list) return 0;
+
+    process_t* p = list;
+    if (p == NULL) return 0;
+
+    do {
+        if (count >= max) break;
+        buf[count] = p->pid;
+    } while (p && p != list);
+
+    return count;
+}
+
+// Kernel-side proc_stat_t (must stay in sync with userspace proc_stat_t in syscalls.h)
+typedef struct {
+    int  pid;
+    int  parent_pid;
+    char name[PROCESS_NAME_MAX];
+    char cwd[PROCESS_CWD_MAX];
+} proc_stat_t;
+
+// ebx=pid (0=current)   ecx=proc_stat_t*   returns 0 or -1
+static int syscall_procstat(interrupt_frame_t* frame) {
+    uint32_t     pid = (uint32_t)frame->ebx;
+    proc_stat_t* buf = (proc_stat_t*)frame->ecx;
+    if (!buf) return SYSCALL_ERROR;
+
+    process_t* p = (pid == 0) ? get_current_process() : scheduler_find_process(pid);
+    if (!p) return SYSCALL_ERROR;
+
+    buf->pid        = (int)p->pid;
+    buf->parent_pid = (int)p->parent_pid;
+    strncpy(buf->name, p->name, PROCESS_NAME_MAX - 1);
+    buf->name[PROCESS_NAME_MAX - 1] = '\0';
+    strncpy(buf->cwd, p->cwd, PROCESS_CWD_MAX - 1);
+    buf->cwd[PROCESS_CWD_MAX - 1] = '\0';
+
+    return 0;
+}
+
+// ebx=pid   returns 0 when target exits
+static int syscall_wait(interrupt_frame_t* frame) {
+    uint32_t pid = (uint32_t)frame->ebx;
+    process_t* cur = get_current_process();
+
+    if (pid == cur->pid)
+        printf("wait: WARNING: process %d waiting for itself\n", cur->pid);
+
+    if (!scheduler_find_process(pid)) return 0;  // already gone
+
+    cur->waiting_for_pid = pid;
+    cur->blocked = true;
+    process_yield();
+    // Execution resumes here after the target process exits and unblocks us
+    return 0;
+}
+
+static int syscall_mkdir(interrupt_frame_t* frame)
+{
+    char* abs_path = frame->ebx;
+    return fs_create_dir(abs_path) == FS_OK ? SYSCALL_SUCCESS : SYSCALL_ERROR;
+}
+
 static syscall_func_t sys_table[SYSCALL_COUNT] = {
-    [SYSCALL_EXIT] = syscall_exit,   [SYSCALL_WRITE] = syscall_write,
-    [SYSCALL_READ] = syscall_read,   [SYSCALL_OPEN] = syscall_open,
-    [SYSCALL_SBRK] = syscall_sbrk,   [SYSCALL_CLOSE] = syscall_close,
-    [SYSCALL_FSTAT] = syscall_fstat, [SYSCALL_ISATTY] = syscall_isatty,
-    [SYSCALL_LSEEK] = syscall_lseek,
+    [SYSCALL_EXIT]        = syscall_exit,
+    [SYSCALL_WRITE]       = syscall_write,
+    [SYSCALL_READ]        = syscall_read,
+    [SYSCALL_OPEN]        = syscall_open,
+    [SYSCALL_SBRK]        = syscall_sbrk,
+    [SYSCALL_CLOSE]       = syscall_close,
+    [SYSCALL_FSTAT]       = syscall_fstat,
+    [SYSCALL_ISATTY]      = syscall_isatty,
+    [SYSCALL_LSEEK]       = syscall_lseek,
+    [SYSCALL_KILL]        = syscall_kill,
+    [SYSCALL_CREATE_PROC] = syscall_create_proc,
+    [SYSCALL_PS]          = syscall_ps,
+    [SYSCALL_WAIT]        = syscall_wait,
+    [SYSCALL_PROCSTAT]    = syscall_procstat,
+    [SYSCALL_MKDIR]       = syscall_mkdir
 };
 
 // SYSCALL HANDLER

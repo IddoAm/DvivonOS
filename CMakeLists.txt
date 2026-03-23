@@ -154,6 +154,7 @@ set(NEWLIB_LIB "${NEWLIB_BASE}/lib")
 set(CRT0_ASM "${CMAKE_SOURCE_DIR}/tools/user-space/crt0.s")
 set(SYSCALLS_C "${CMAKE_SOURCE_DIR}/tools/user-space/syscalls.c")
 set(DEFAULT_LINKER_SCRIPT "${CMAKE_SOURCE_DIR}/tools/user-space/linker.ld")
+set(USER_SPACE_INCLUDE "${CMAKE_SOURCE_DIR}/tools/user-space")
 
 # Compile crt0.s once for all programs
 set(CRT0_OBJ "${CMAKE_BINARY_DIR}/programs/crt0.o")
@@ -169,8 +170,8 @@ add_custom_command(
 set(SYSCALLS_OBJ "${CMAKE_BINARY_DIR}/programs/syscalls.o")
 add_custom_command(
     OUTPUT ${SYSCALLS_OBJ}
-    COMMAND ${CMAKE_C_COMPILER} -c ${SYSCALLS_C} -o ${SYSCALLS_OBJ} -I${NEWLIB_INCLUDE} -ffreestanding
-    DEPENDS ${SYSCALLS_C}
+    COMMAND ${CMAKE_C_COMPILER} -c ${SYSCALLS_C} -o ${SYSCALLS_OBJ} -I${NEWLIB_INCLUDE} -I${USER_SPACE_INCLUDE} -ffreestanding
+    DEPENDS ${SYSCALLS_C} ${CMAKE_SOURCE_DIR}/tools/user-space/syscalls.h
     VERBATIM
     COMMENT "Compiling shared syscalls..."
 )
@@ -220,7 +221,7 @@ macro(add_program PROGRAM_NAME PROGRAM_DIR)
         
         add_custom_command(
             OUTPUT ${C_OBJ}
-            COMMAND ${CMAKE_C_COMPILER} -c ${C_FILE} -o ${C_OBJ} -I${NEWLIB_INCLUDE} -ffreestanding
+            COMMAND ${CMAKE_C_COMPILER} -c ${C_FILE} -o ${C_OBJ} -I${NEWLIB_INCLUDE} -I${USER_SPACE_INCLUDE} -ffreestanding
             DEPENDS ${C_FILE}
             VERBATIM
             COMMENT "Compiling ${C_NAME} for ${PROGRAM_NAME}..."

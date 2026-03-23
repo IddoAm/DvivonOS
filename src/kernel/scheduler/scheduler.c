@@ -5,6 +5,7 @@
 #include <kernel/heap-allocator.h>
 #include <fs/vfs/file.h>
 #include <arch/i686/pic.h>
+#include <stdbool.h>
 
 #define PROCESS_MAX_TICKS 5
 
@@ -27,6 +28,20 @@ void context_switch(process_t* from, process_t* to) {
     switch_to_stack(&from->kernel_esp, to->kernel_esp);
 }
 
+// Returns the next runnable (non-blocked) process after current_process.
+// Returns NULL if every process is blocked.
+static process_t* scheduler_next_runnable(void) {
+    if (!process_list) return NULL;
+    process_t* next = current_process->next;
+    if (!next) next = process_list;
+    process_t* start = next;
+    do {
+        if (!next->blocked) return next;
+        next = next->next ? next->next : process_list;
+    } while (next != start);
+    return NULL; // all processes blocked
+}
+
 void schedule(interrupt_frame_t* frame) {
     if (state == SCHED_STATE_STARTING) {
         state = SCHED_STATE_RUNNING;
@@ -44,14 +59,10 @@ void schedule(interrupt_frame_t* frame) {
 
     if (current_process_ticks >= PROCESS_MAX_TICKS) {
         current_process_ticks = 0;
-
-        process_t* next_proc = current_process->next;
-        if (!next_proc)
-            next_proc = process_list;
-
-        if (next_proc == current_process)
+        process_t* next = scheduler_next_runnable();
+        if (!next || next == current_process)
             return;
-        context_switch(current_process, next_proc);
+        context_switch(current_process, next);
     }
 }
 
@@ -65,6 +76,25 @@ void scheduler_init() {
         for (;;)
         asm volatile("hlt");
 }
+
+void process_yield(void) {
+    current_process_ticks = PROCESS_MAX_TICKS;
+    
+    // Trigger your timer interrupt vector. 
+    asm volatile("int $0x20"); 
+}
+
+process_t* scheduler_find_process(uint32_t pid) {
+    if (!process_list) return NULL;
+    process_t* p = process_list;
+    do {
+        if (p->pid == pid) return p;
+        p = p->next;
+    } while (p != process_list);
+    return NULL;
+}
+
+process_t* scheduler_get_list(void) { return process_list; }
 
 void scheduler_add_process(process_t* proc) {
     if (!process_list) {
@@ -93,7 +123,8 @@ void scheduler_start() {
     scheduler_init();
 }
 
-void process_init(process_t* p, void (*entry)(void)) {
+void process_init(process_t* p, void (*entry)(void),
+                  int argc, const char** argv, const char* cwd) {
     // Zero the process structure and set PID
     memset(p, 0, sizeof(process_t));
     *(uint32_t*)&p->pid = next_pid++;
@@ -111,11 +142,7 @@ void process_init(process_t* p, void (*entry)(void)) {
     uint32_t old_cr3 = vmm_read_cr3();
     vmm_switch_address_space(p->pd_phys);
 
-
-    uint32_t stack_high = (PROCESS_STACK_TOP - 1) & ~(PAGE_SIZE - 1);
     for (int i = 0; i < USER_STACK_PAGES; i++) {
-        // uint32_t stack_page_vaddr = PROCESS_STACK_TOP - (i + 1) * PAGE_SIZE;
-        // if (!vmm_alloc_user_page_at(stack_page_vaddr)) {
         uint32_t stack_page_vaddr = PROCESS_STACK_TOP - (i + 1) * PAGE_SIZE;
         if (!vmm_alloc_user_page_at(stack_page_vaddr)) {
             printf("process_init: failed to allocate user stack page\n");
@@ -123,25 +150,66 @@ void process_init(process_t* p, void (*entry)(void)) {
             return;
         }
     }
+
+    // Store cwd in process struct — accessible later via procstat syscall
+    if (cwd) {
+        strncpy(p->cwd, cwd, PROCESS_CWD_MAX - 1);
+        p->cwd[PROCESS_CWD_MAX - 1] = '\0';
+    } else {
+        p->cwd[0] = '/';
+        p->cwd[1] = '\0';
+    }
+
+    // Build argc/argv layout on the user stack (high → low)
+    uint32_t sp = PROCESS_STACK_TOP;
+
+    uint32_t argv_ptrs[PROCESS_ARGV_MAX];
+    if (argc > PROCESS_ARGV_MAX)
+        printf("%o[WARN] process started with %d args but max is %d\n", STD_COLOR_LIGHT_RED, argc, PROCESS_ARGV_MAX);
+    int safe_argc = (argc > PROCESS_ARGV_MAX) ? PROCESS_ARGV_MAX : argc;
+
+
+    if (argv) {
+        for (int i = safe_argc - 1; i >= 0; i--) {
+            uint32_t len = strlen(argv[i]) + 1;
+            sp -= len;
+            memcpy((void*)sp, argv[i], len);
+            argv_ptrs[i] = sp;
+        }
+    }
+
+    sp &= ~3U; // align to 4 bytes
+
+    // Push NULL sentinel (end of argv[])
+    sp -= 4;
+    *(uint32_t*)sp = 0;
+    // Push argv pointers (argv[0] will be closest to argc after all pushes)
+    for (int i = safe_argc - 1; i >= 0; i--) {
+        sp -= 4; *(uint32_t*)sp = argv_ptrs[i];
+    }
+    // Push argc
+    sp -= 4; 
+    *(uint32_t*)sp = (uint32_t)safe_argc;
+
     vmm_switch_address_space(old_cr3);
 
     // Prime the kernel stack with an interrupt frame at the top
     interrupt_frame_t* frame = (interrupt_frame_t*)(p->kernel_stack_top - sizeof(interrupt_frame_t));
     memset(frame, 0, sizeof(interrupt_frame_t));
 
-    frame->eip   = (uint32_t)entry;
-    frame->cs    = GDT_USER_CODE_SEL;
+    frame->eip    = (uint32_t)entry;
+    frame->cs     = GDT_USER_CODE_SEL;
     frame->eflags = 0x202;
-    frame->esp   = PROCESS_STACK_TOP;
-    frame->ss    = GDT_USER_DATA_SEL;
-    frame->ds    = frame->es = frame->fs = frame->gs = GDT_USER_DATA_SEL;
+    frame->esp    = sp;
+    frame->ss     = GDT_USER_DATA_SEL;
+    frame->ds     = frame->es = frame->fs = frame->gs = GDT_USER_DATA_SEL;
+    frame->useresp = sp;
 
     // Build the stack that switch_to_stack expects when restoring this process:
     //   [edi] [esi] [ebx] [ebp] [return addr = fork_ret]
-    // switch_to_stack will pop edi/esi/ebx/ebp, then ret into fork_ret
     uint32_t* stack_ptr = (uint32_t*)frame;
     stack_ptr--;
-    *stack_ptr = (uint32_t)fork_ret;  // return address for ret
+    *stack_ptr = (uint32_t)fork_ret;
     stack_ptr--;
     *stack_ptr = 0;  // ebp
     stack_ptr--;
@@ -153,9 +221,6 @@ void process_init(process_t* p, void (*entry)(void)) {
 
     p->kernel_esp = (uint32_t)stack_ptr;
     p->heap_brk = PROCESS_HEAP_START;
-    frame->useresp = PROCESS_STACK_TOP; 
-
-
     p->next = NULL;
 }
 
@@ -196,6 +261,18 @@ void process_exit(process_t* proc, interrupt_frame_t* frame) {
         p->next = proc->next;
         if (process_list == proc)
             process_list = proc->next;
+    }
+
+    // Unblock any process that was waiting for this one
+    if (process_list) {
+        process_t* p = process_list;
+        do {
+            if (p->waiting_for_pid == proc->pid) {
+                p->blocked = false;
+                p->waiting_for_pid = 0;
+            }
+            p = p->next;
+        } while (p && p != process_list);
     }
 
     // Close any open file descriptors

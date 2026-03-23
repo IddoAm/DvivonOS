@@ -2,6 +2,7 @@
 #include <sys/types.h>
 #include <errno.h>
 #include <stdint.h>
+#include "syscalls.h"
 
 #define SYSCALL_EXIT    0
 #define SYSCALL_WRITE   1
@@ -12,6 +13,13 @@
 #define SYSCALL_ISATTY  6
 #define SYSCALL_LSEEK   7
 #define SYSCALL_OPEN    8
+#define SYSCALL_KILL         9
+#define SYSCALL_CREATE_PROC  10
+#define SYSCALL_PS           11
+#define SYSCALL_WAIT         12
+#define SYSCALL_PROCSTAT     13
+#define SYSCALL_MKDIR        14
+
 
 static inline int do_syscall(uintptr_t num, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3) {
     int ret;
@@ -73,5 +81,31 @@ int _open(const char *path, int flags, int mode) {
     return do_syscall(SYSCALL_OPEN, (uintptr_t)path, (uintptr_t)flags, (uintptr_t)mode);
 }
 
-int kill(int pid, int sig) { (void)pid; (void)sig; return -1; }
-int getpid(void) { return 1; }
+int kill(int pid, int sig) {
+    (void)sig; // signal model not implemented; always force-kills
+    return do_syscall(SYSCALL_KILL, (uintptr_t)pid, 0, 0);
+}
+
+int create_proc_by_elf(const proc_create_args_t* args) {
+    return do_syscall(SYSCALL_CREATE_PROC, (uintptr_t)args, 0, 0);
+}
+
+int ps(uint32_t* buf, int max_entries) {
+    return do_syscall(SYSCALL_PS, (uintptr_t)buf, (uintptr_t)max_entries, 0);
+}
+
+int wait_pid(int pid) {
+    return do_syscall(SYSCALL_WAIT, (uintptr_t)pid, 0, 0);
+}
+
+int mkdir(char* abs_path) {
+    return do_syscall(SYSCALL_MKDIR, (uintptr_t)abs_path, 0, 0);
+}
+
+int procstat(int pid, proc_stat_t* out) {
+    return do_syscall(SYSCALL_PROCSTAT, (uintptr_t)pid, (uintptr_t)out, 0);
+}
+
+// Stubs — other developers will replace these with real syscalls:
+int  getpid(void) { return 1; }
+void yield(void)  { /* TODO: do_syscall(SYSCALL_YIELD, 0, 0, 0); */ }

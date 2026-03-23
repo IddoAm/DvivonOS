@@ -5,19 +5,20 @@
 
 #define PT_LOAD 1
 
-int load_elf(void* buffer, uint32_t size) {
+process_t* load_elf(void* buffer, uint32_t size,
+                    int argc, const char** argv, const char* cwd) {
     elf_header_t* header = (elf_header_t*)buffer;
 
     // 1. Validation
     if (header->ident[0] != 0x7F || header->ident[1] != 'E' ||
         header->ident[2] != 'L' || header->ident[3] != 'F') {
-        return -1;
+        return NULL;
     }
 
     // 2. Create the process structure and address space
     process_t* proc = (process_t*)kmalloc(sizeof(process_t));
-    memset(proc, 0, sizeof(*proc));
-    process_init(proc, (void*)header->entry);
+    if (!proc) return NULL;
+    process_init(proc, (void*)header->entry, argc, argv, cwd ? cwd : "/");
 
     // 3. Switch to the new process address space to perform the load
     uint32_t old_cr3 = vmm_read_cr3();
@@ -31,7 +32,6 @@ int load_elf(void* buffer, uint32_t size) {
             // 5. Allocate memory for this segment
             for (uint32_t vaddr = ph[i].vaddr; vaddr < ph[i].vaddr + ph[i].memsz; vaddr += PAGE_SIZE) {
                 uint32_t page_aligned_vaddr = vaddr & 0xFFFFF000;
-                
                 vmm_alloc_user_page_at(page_aligned_vaddr);
             }
 
@@ -48,7 +48,5 @@ int load_elf(void* buffer, uint32_t size) {
     // 8. Restore the original address space
     vmm_switch_address_space(old_cr3);
 
-    scheduler_add_process(proc);
-
-    return 0;
+    return proc;
 }

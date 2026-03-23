@@ -4,20 +4,29 @@
 .globl _start
 
 _start:
-    # 1. Set up the base pointer for debugging/stack traces
     xorl %ebp, %ebp
-    pushl %ebp
-    movl %esp, %ebp
 
-    # 2. Call the C main function
-    # TODO: implement push argc/argv here
-    call main
+    # Stack layout set up by the kernel in process_init():
+    #   [esp+0]          = argc  (int)
+    #   [esp+4]          = argv[0] pointer
+    #   ...
+    #   [esp+4*argc]     = argv[argc-1] pointer
+    #   [esp+4*(argc+1)] = NULL  (end of argv[])
+    #   ... argv string data ...
 
-    # 3. Use the return value of main as the exit status
-    pushl %eax
-    call _exit
+    popl   %eax           # eax = argc  (esp now points to argv[0])
+    movl   %esp, %ebx     # ebx = argv  (pointer to argv[0] on stack)
 
-    # 4. If _exit fails to terminate, hang the CPU
+    # Call main(argc, argv)
+    pushl  %ebx           # arg2: argv
+    pushl  %eax           # arg1: argc
+    call   main
+    addl   $8, %esp       # clean up 2 pushed args
+
+    pushl  %eax
+    call   _exit
+
+    # If _exit fails to terminate, hang the CPU
 .halt:
     hlt
     jmp .halt
