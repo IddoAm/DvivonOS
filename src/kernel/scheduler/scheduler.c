@@ -62,6 +62,12 @@ process_t* scheduler_find_by_pid(uint32_t pid) {
     return NULL;
 }
 
+void process_reap(process_t* proc){
+    vmm_destroy_address_space(proc->pd_phys);
+    kfree((uintptr_t)proc->kernel_stack_base);
+    kfree((uintptr_t)proc);
+}
+
 void schedule(interrupt_frame_t* frame) {
     if (state == SCHED_STATE_STARTING) {
         state = SCHED_STATE_RUNNING;
@@ -73,13 +79,8 @@ void schedule(interrupt_frame_t* frame) {
     }
 
     if(zombie_process) {
-        process_t* proc = zombie_process;
+        process_reap(zombie_process);
         zombie_process = NULL;
-
-        // Free resources
-        vmm_destroy_address_space(proc->pd_phys);
-        kfree((uintptr_t)proc->kernel_stack_base);
-        kfree((uintptr_t)proc);
     }
 
     if (state != SCHED_STATE_RUNNING || !current_process)
@@ -258,6 +259,12 @@ void process_exit(process_t* proc, interrupt_frame_t* frame) {
 
     // Switch away BEFORE freeing anything, using a throwaway save location
     if (proc == current_process) {
+
+        if(zombie_process){
+            process_reap(zombie_process);
+            zombie_process = NULL;
+        }
+
         proc->state = PROCESS_STATE_ZOMBIE;
         zombie_process = proc;
 
