@@ -103,7 +103,7 @@ void isr_register_handler(uint8_t num, interrupt_handler_t handler) {
             return;
         }
     }
-    printf("isr_register_handler: no free slot for vector %d\n", num);
+    printf("%o IDT ERROR: isr_register_handler: no free slot for vector %d\n", STD_COLOR_RED, num);
 }
 
 void isr_unregister_handler(uint8_t num, interrupt_handler_t handler) {
