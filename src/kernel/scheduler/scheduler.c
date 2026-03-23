@@ -259,7 +259,7 @@ void process_exit(process_t* proc, interrupt_frame_t* frame) {
 
     // Switch away BEFORE freeing anything, using a throwaway save location
     if (proc == current_process) {
-
+        // Incase there's already a zombie process
         if(zombie_process){
             process_reap(zombie_process);
             zombie_process = NULL;
@@ -273,6 +273,7 @@ void process_exit(process_t* proc, interrupt_frame_t* frame) {
         current_process = next;
 
         context_switch(&dead_proc, next);
+        // Can't reach
     }
 
     // Only reached for non-current exiting processes
