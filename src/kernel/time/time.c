@@ -8,7 +8,8 @@
 
 #define PIT_FREQUENCY 1193180
 
-volatile uint64_t system_ticks = 0;
+static volatile uint64_t system_ticks = 0;
+static uint32_t timer_frequency = 0;
 static timer_event_t* event_list = NULL;
 
 void timer_interrupt_handler(interrupt_frame_t* frame) {
@@ -31,7 +32,16 @@ uint64_t get_ticks(){
     return system_ticks;
 }
 
+uint64_t ticks_to_ms(uint64_t ticks) {
+    return (ticks * 1000) / timer_frequency;
+}
+
+uint64_t ms_to_ticks(uint32_t ms) {
+    return ((uint64_t)ms * timer_frequency) / 1000;
+}
+
 void clock_init(uint32_t frequency) {
+    timer_frequency = frequency;
     // Calculate the divisor for the desired frequency
     uint32_t divisor = PIT_FREQUENCY / frequency;
 

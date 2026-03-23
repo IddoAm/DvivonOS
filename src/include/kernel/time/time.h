@@ -15,6 +15,9 @@ typedef struct timer_event {
 void clock_init(uint32_t frequency);
 uint64_t get_ticks();
 
+uint64_t ticks_to_ms(uint64_t ticks);
+uint64_t ms_to_ticks(uint32_t ms);
+
 timer_event_t* register_timer_event(uint64_t delay, timer_callback_t callback, void* data);
 void unregister_timer_event(timer_event_t* event);
 

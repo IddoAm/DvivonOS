@@ -294,9 +294,11 @@ void process_wake(process_t* proc) {
 }
 
 void process_wake_callback(void* data) {
-    if(!data) return;
+    if (!data) return;
+    process_t* proc = (process_t*)data;
 
-    process_wake((process_t*)data);
+    proc->state = PROCESS_STATE_READY;
+    proc->sleep_event = NULL;
 }
 
 void process_sleep(uint32_t ticks) {
