@@ -1,0 +1,4 @@
+libm/machine/i386/libm_a-feupdateenv.o: \
+ ../../../newlib-cygwin/newlib/libm/machine/i386/feupdateenv.c \
+ ../../../newlib-cygwin/newlib/libm/machine/i386/../../fenv/fenv_stub.c
+../../../newlib-cygwin/newlib/libm/machine/i386/../../fenv/fenv_stub.c:
