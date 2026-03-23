@@ -4,7 +4,7 @@
 
 int main() {
     char name[32];
-    printf("enter your sigmosh\n");
+    printf("enter your name\n");
 
     scanf("%31s", name);
     printf("hello, %s!\n", name);
