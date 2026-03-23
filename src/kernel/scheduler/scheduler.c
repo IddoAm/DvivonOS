@@ -31,21 +31,18 @@ void context_switch(process_t* from, process_t* to) {
 process_t* find_next_ready() {
     process_t* curr = current_process;
 
-    while (1) {
+    do {
         curr = curr->next;
-        
         if (curr == NULL) {
             curr = process_list;
         }
 
+        // Check second
         if (curr->state == PROCESS_STATE_READY) {
             return curr;
         }
 
-        if (curr == current_process) {
-            break; 
-        }
-    }
+    } while (curr != current_process);
 
     return NULL; 
 }
@@ -262,7 +259,6 @@ void process_exit(process_t* proc, interrupt_frame_t* frame) {
         // Incase there's already a zombie process
         if(zombie_process){
             process_reap(zombie_process);
-            zombie_process = NULL;
         }
 
         proc->state = PROCESS_STATE_ZOMBIE;
@@ -277,9 +273,7 @@ void process_exit(process_t* proc, interrupt_frame_t* frame) {
     }
 
     // Only reached for non-current exiting processes
-    vmm_destroy_address_space(proc->pd_phys);
-    kfree((uintptr_t)proc->kernel_stack_base);
-    kfree((uintptr_t)proc);
+    process_reap(proc);
 }
 
 void process_yield(void) {
