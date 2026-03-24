@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <kernel/scheduler/scheduler.h>
 
 
 /* ========================================================================
@@ -100,12 +101,11 @@ static void ata_prepare_irq(void) {
  * the CPU; the loop rechecks the flag and halts again if it was
  * not the ATA IRQ.
  *
- * TODO: Replace with yield() once a proper scheduler is available.
  */
 static void ata_wait_irq(void) {
     while (!ata_irq_fired)
     {
-        __asm__ volatile("hlt");
+        process_yield();
     }
 }
 

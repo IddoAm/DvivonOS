@@ -72,18 +72,6 @@ static process_t* find_next_ready(void) {
     return NULL; 
 }
 
-process_t* scheduler_find_by_pid(uint32_t pid) {
-    process_t* curr = process_list;
-    if (!curr) return NULL;
-
-    do {
-        if (curr->pid == pid) return curr;
-        curr = curr->next;
-    } while (curr != process_list);
-
-    return NULL;
-}
-
 void process_reap(process_t* proc){
     vmm_destroy_address_space(proc->pd_phys);
     kfree((uintptr_t)proc->kernel_stack_base);

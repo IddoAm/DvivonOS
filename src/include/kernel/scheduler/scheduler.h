@@ -67,13 +67,10 @@ void process_init(process_t* p, void (*entry)(void), int argc, const char** argv
 void process_exit(process_t* proc, interrupt_frame_t* frame);
 
 void scheduler_add_process(process_t* proc);
-process_t* scheduler_find_by_pid(uint32_t pid);
-
 bool process_load_user_memory(process_t* p, uint32_t vaddr, const void* src, size_t len);
 
 process_t* get_current_process(void);
 process_t* scheduler_find_process(uint32_t pid);
-void process_yield(void);
 process_t* scheduler_get_list(void);
 void process_crash_handler(interrupt_frame_t* frame);
 

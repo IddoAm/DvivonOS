@@ -34,7 +34,6 @@ typedef struct {
 } elf_program_header_t;
 
 // Returns the newly created process_t* on success, NULL on failure.
-// Does NOT call scheduler_add_process() — caller must do that.
 process_t* load_elf(void* buffer, uint32_t size,
                     int argc, const char** argv, const char* cwd);
 

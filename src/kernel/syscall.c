@@ -359,6 +359,12 @@ static int syscall_mkdir(interrupt_frame_t* frame)
     return fs_create_dir(abs_path) == FS_OK ? SYSCALL_SUCCESS : SYSCALL_ERROR;
 }
 
+// get nothing
+static int syscall_yield(interrupt_frame_t* frame) {
+    process_yield();
+}
+
+
 static syscall_func_t sys_table[SYSCALL_COUNT] = {
     [SYSCALL_EXIT]        = syscall_exit,
     [SYSCALL_WRITE]       = syscall_write,
@@ -374,7 +380,8 @@ static syscall_func_t sys_table[SYSCALL_COUNT] = {
     [SYSCALL_PS]          = syscall_ps,
     [SYSCALL_WAIT]        = syscall_wait,
     [SYSCALL_PROCSTAT]    = syscall_procstat,
-    [SYSCALL_MKDIR]       = syscall_mkdir
+    [SYSCALL_MKDIR]       = syscall_mkdir,
+    [SYSCALL_YIELD]       = syscall_yield
 };
 
 // SYSCALL HANDLER
