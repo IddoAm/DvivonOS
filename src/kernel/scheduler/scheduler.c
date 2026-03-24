@@ -151,12 +151,6 @@ void scheduler_init() {
         asm volatile("hlt");
 }
 
-void process_yield(void) {
-    current_process_ticks = PROCESS_MAX_TICKS;
-    
-    // Trigger your timer interrupt vector. 
-    asm volatile("int $0x20"); 
-}
 
 process_t* scheduler_find_process(uint32_t pid) {
     if (!process_list) return NULL;

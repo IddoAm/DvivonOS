@@ -347,7 +347,7 @@ static int syscall_wait(interrupt_frame_t* frame) {
     if (!scheduler_find_process(pid)) return 0;  // already gone
 
     cur->waiting_for_pid = pid;
-    cur->blocked = true;
+    cur->state = PROCESS_STATE_BLOCKED;
     process_yield();
     // Execution resumes here after the target process exits and unblocks us
     return 0;
