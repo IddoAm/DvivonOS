@@ -10,7 +10,8 @@ set(CMAKE_OBJCOPY i686-elf-objcopy)
 
 # compiler flags
 set(CMAKE_C_FLAGS "-ffreestanding -fno-stack-protector -fno-pic -Wall -Wextra -O2")
-set(CMAKE_EXE_LINKER_FLAGS "-nostdlib -lgcc")
+# Removed -lgcc from here — it must come AFTER object files at link time
+set(CMAKE_EXE_LINKER_FLAGS "-nostdlib")
 
 # include path for headers
 include_directories(${CMAKE_SOURCE_DIR}/src/include)
@@ -23,6 +24,9 @@ file(GLOB_RECURSE SOURCES
 
 # kernel ELF target
 add_executable(kernel.elf ${SOURCES})
+
+# Link libgcc AFTER objects so __udivdi3 and friends resolve correctly
+target_link_libraries(kernel.elf gcc)
 
 # linker script
 set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/src/arch/i686/linker.ld)
@@ -49,7 +53,6 @@ set(STAGE2_LINKER_FLAGS "-n -nostdlib -Ttext 0x7E00 --oformat binary")
 set(STAGE1_ASM ${CMAKE_SOURCE_DIR}/bootloader/stage1.s)
 set(STAGE1_O   ${CMAKE_BINARY_DIR}/bootloader/stage1.o)
 set(STAGE1_BIN ${CMAKE_BINARY_DIR}/bootloader/stage1.bin)
-
 
 add_custom_command(
     OUTPUT ${STAGE1_BIN}
@@ -181,28 +184,28 @@ macro(add_program PROGRAM_NAME PROGRAM_DIR)
     file(GLOB PROGRAM_ASM "${PROGRAM_DIR}/*.s")
     file(GLOB PROGRAM_C "${PROGRAM_DIR}/*.c")
     file(GLOB PROGRAM_LD "${PROGRAM_DIR}/*.ld")
-    
+
     # Use custom linker script if provided, otherwise use default
     if(PROGRAM_LD)
         set(LINKER_SCRIPT ${PROGRAM_LD})
     else()
         set(LINKER_SCRIPT ${DEFAULT_LINKER_SCRIPT})
     endif()
-    
+
     # Start with empty object list
     set(PROGRAM_OBJS "")
-    
+
     # Only include crt0.o and syscalls.o for C programs
     if(PROGRAM_C)
         list(APPEND PROGRAM_OBJS "${CRT0_OBJ}")
         list(APPEND PROGRAM_OBJS "${SYSCALLS_OBJ}")
     endif()
-    
+
     # Compile program-specific assembly files
     foreach(ASM_FILE ${PROGRAM_ASM})
         get_filename_component(ASM_NAME ${ASM_FILE} NAME_WE)
         set(ASM_OBJ "${CMAKE_BINARY_DIR}/programs/${PROGRAM_NAME}_${ASM_NAME}.o")
-        
+
         add_custom_command(
             OUTPUT ${ASM_OBJ}
             COMMAND ${CMAKE_ASM_COMPILER} -o ${ASM_OBJ} ${ASM_FILE}
@@ -210,15 +213,15 @@ macro(add_program PROGRAM_NAME PROGRAM_DIR)
             VERBATIM
             COMMENT "Assembling ${ASM_NAME} for ${PROGRAM_NAME}..."
         )
-        
+
         list(APPEND PROGRAM_OBJS "${ASM_OBJ}")
     endforeach()
-    
+
     # Compile program-specific C files
     foreach(C_FILE ${PROGRAM_C})
         get_filename_component(C_NAME ${C_FILE} NAME_WE)
         set(C_OBJ "${CMAKE_BINARY_DIR}/programs/${PROGRAM_NAME}_${C_NAME}.o")
-        
+
         add_custom_command(
             OUTPUT ${C_OBJ}
             COMMAND ${CMAKE_C_COMPILER} -c ${C_FILE} -o ${C_OBJ} -I${NEWLIB_INCLUDE} -I${USER_SPACE_INCLUDE} -ffreestanding
@@ -226,14 +229,14 @@ macro(add_program PROGRAM_NAME PROGRAM_DIR)
             VERBATIM
             COMMENT "Compiling ${C_NAME} for ${PROGRAM_NAME}..."
         )
-        
+
         list(APPEND PROGRAM_OBJS "${C_OBJ}")
     endforeach()
-    
+
     # Link to ELF with NewLib (only if we have objects to link)
     if(PROGRAM_OBJS)
         set(PROGRAM_ELF "${CMAKE_SOURCE_DIR}/root-fs/public-bin/${PROGRAM_NAME}")
-        
+
         if(PROGRAM_C)
             # C programs: link with NewLib
             add_custom_command(
@@ -253,7 +256,7 @@ macro(add_program PROGRAM_NAME PROGRAM_DIR)
                 COMMENT "Linking ${PROGRAM_NAME}..."
             )
         endif()
-        
+
         # Add to global target
         list(APPEND PROGRAM_ELFS ${PROGRAM_ELF})
     endif()

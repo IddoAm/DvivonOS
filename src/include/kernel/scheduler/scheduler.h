@@ -7,6 +7,7 @@
 #include <kernel/vmm.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <kernel/time/time.h>
 
 #define PROCESS_HEAP_START 0x00601000
 
@@ -27,7 +28,15 @@ typedef enum {
     SCHED_STATE_READY = 1,
     SCHED_STATE_STARTING = 2,
     SCHED_STATE_RUNNING = 3,
-} scheduler_state; // TODO: think if it need to end with _t
+} scheduler_state_t; 
+
+typedef enum {
+    PROCESS_STATE_READY = 0,
+    PROCESS_STATE_SLEEPING = 1,
+    PROCESS_STATE_ZOMBIE = 2,
+    PROCESS_STATE_BLOCKED = 2,
+
+} process_state_t;
 
 typedef struct process {
     const uint32_t pid;
@@ -45,7 +54,9 @@ typedef struct process {
     uint32_t kernel_stack_base;
 
     uint32_t waiting_for_pid; // 0 = not blocked; >0 = waiting for this PID
-    bool blocked;             // true while waiting for a child
+
+    process_state_t state;
+    timer_event_t* sleep_event;
 
     struct process* next;
 } process_t;
@@ -56,6 +67,8 @@ void process_init(process_t* p, void (*entry)(void), int argc, const char** argv
 void process_exit(process_t* proc, interrupt_frame_t* frame);
 
 void scheduler_add_process(process_t* proc);
+process_t* scheduler_find_by_pid(uint32_t pid);
+
 bool process_load_user_memory(process_t* p, uint32_t vaddr, const void* src, size_t len);
 
 process_t* get_current_process(void);
@@ -63,5 +76,9 @@ process_t* scheduler_find_process(uint32_t pid);
 void process_yield(void);
 process_t* scheduler_get_list(void);
 void process_crash_handler(interrupt_frame_t* frame);
+
+void process_yield(void);
+void process_sleep(uint32_t ticks);
+void process_wake(process_t* proc);
 
 #endif

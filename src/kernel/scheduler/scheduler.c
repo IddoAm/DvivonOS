@@ -12,9 +12,10 @@
 static uint32_t next_pid = 1;
 
 static process_t* current_process = NULL;
+static process_t* zombie_process = NULL;
 static process_t* process_list = NULL;
 static volatile uint32_t current_process_ticks = 0;
-static scheduler_state state = SCHED_STATE_OFF;
+static scheduler_state_t state = SCHED_STATE_OFF;
 
 extern void switch_to_stack(uint32_t* old_esp, uint32_t new_esp);
 extern void fork_ret(void);
@@ -52,18 +53,41 @@ void context_switch(process_t* from, process_t* to) {
     switch_to_stack(&from->kernel_esp, to->kernel_esp);
 }
 
-// Returns the next runnable (non-blocked) process after current_process.
-// Returns NULL if every process is blocked.
-static process_t* scheduler_next_runnable(void) {
-    if (!process_list) return NULL;
-    process_t* next = current_process->next;
-    if (!next) next = process_list;
-    process_t* start = next;
+static process_t* find_next_ready(void) {
+    process_t* curr = current_process;
+
     do {
-        if (!next->blocked) return next;
-        next = next->next ? next->next : process_list;
-    } while (next != start);
-    return NULL; // all processes blocked
+        curr = curr->next;
+        if (curr == NULL) {
+            curr = process_list;
+        }
+
+        // Check second
+        if (curr->state == PROCESS_STATE_READY) {
+            return curr;
+        }
+
+    } while (curr != current_process);
+
+    return NULL; 
+}
+
+process_t* scheduler_find_by_pid(uint32_t pid) {
+    process_t* curr = process_list;
+    if (!curr) return NULL;
+
+    do {
+        if (curr->pid == pid) return curr;
+        curr = curr->next;
+    } while (curr != process_list);
+
+    return NULL;
+}
+
+void process_reap(process_t* proc){
+    vmm_destroy_address_space(proc->pd_phys);
+    kfree((uintptr_t)proc->kernel_stack_base);
+    kfree((uintptr_t)proc);
 }
 
 void schedule(interrupt_frame_t* frame) {
@@ -76,17 +100,25 @@ void schedule(interrupt_frame_t* frame) {
         return; // unreachable
     }
 
+    if(zombie_process) {
+        process_reap(zombie_process);
+        zombie_process = NULL;
+    }
+
     if (state != SCHED_STATE_RUNNING || !current_process)
         return;
 
     current_process_ticks++;
-
     if (current_process_ticks >= PROCESS_MAX_TICKS) {
         current_process_ticks = 0;
-        process_t* next = scheduler_next_runnable();
-        if (!next || next == current_process)
+
+        process_t* next_proc = find_next_ready();
+        if(next_proc == NULL)
+            printf("%ofound no next process", STD_COLOR_RED);
+        if (next_proc == current_process)
             return;
-        context_switch(current_process, next);
+
+        context_switch(current_process, next_proc);
     }
 }
 
@@ -170,6 +202,8 @@ void process_init(process_t* p, void (*entry)(void),
     // Zero the process structure and set PID
     memset(p, 0, sizeof(process_t));
     *(uint32_t*)&p->pid = next_pid++;
+
+    p->state = PROCESS_STATE_READY;
 
     uint32_t kstack = kmalloc(PAGE_SIZE * 2);
     if (!kstack) {
@@ -294,6 +328,10 @@ void process_exit(process_t* proc, interrupt_frame_t* frame) {
         for (;;) asm volatile("hlt");
     }
 
+    if(proc->state == PROCESS_STATE_SLEEPING) {
+        unregister_timer_event(proc->sleep_event);
+    }
+
     // Unlink from circular list
     process_t* p = process_list;
     while (p->next != proc && p->next != process_list)
@@ -310,7 +348,7 @@ void process_exit(process_t* proc, interrupt_frame_t* frame) {
         process_t* p = process_list;
         do {
             if (p->waiting_for_pid == proc->pid) {
-                p->blocked = false;
+                p->state = PROCESS_STATE_READY;
                 p->waiting_for_pid = 0;
             }
             p = p->next;
@@ -327,18 +365,59 @@ void process_exit(process_t* proc, interrupt_frame_t* frame) {
 
     // Switch away BEFORE freeing anything, using a throwaway save location
     if (proc == current_process) {
-        process_t* next = process_list;
+        // Incase there's already a zombie process
+        if(zombie_process){
+            process_reap(zombie_process);
+        }
+
+        proc->state = PROCESS_STATE_ZOMBIE;
+        zombie_process = proc;
+
+        process_t* next = find_next_ready();
         process_t dead_proc;
         current_process = next;
 
         context_switch(&dead_proc, next);
-        // Never reached — proc's memory is freed after we've already left its stack
+        // Can't reach
     }
 
     // Only reached for non-current exiting processes
-    vmm_destroy_address_space(proc->pd_phys);
-    kfree((uintptr_t)proc->kernel_stack_base);
-    kfree((uintptr_t)proc);
+    process_reap(proc);
+}
+
+void process_yield(void) {
+    current_process_ticks = PROCESS_MAX_TICKS;
+    
+    // Trigger your timer interrupt vector. 
+    asm volatile("int $0x20"); 
+}
+
+void process_wake(process_t* proc) {
+    if (!proc) return;
+
+    // If there was a pending timer/sleep event, cancel it now
+    if (proc->sleep_event != NULL) {
+        unregister_timer_event(proc->sleep_event);
+        proc->sleep_event = NULL;
+    }
+
+    proc->state = PROCESS_STATE_READY;
+}
+
+void process_wake_callback(void* data) {
+    if (!data) return;
+    process_t* proc = (process_t*)data;
+
+    proc->state = PROCESS_STATE_READY;
+    proc->sleep_event = NULL;
+}
+
+void process_sleep(uint32_t ticks) {
+    if (!current_process) return;
+
+    current_process->state = PROCESS_STATE_SLEEPING;
+    current_process->sleep_event = register_timer_event(ticks, process_wake_callback, (void*)current_process);
+    process_yield();
 }
 
 process_t* get_current_process(void) {
