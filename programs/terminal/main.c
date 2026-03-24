@@ -140,6 +140,7 @@ static int tokenize(char* line, char** argv, int max_args) {
 /* ── Main loop ───────────────────────────────────────────────────────── */
 
 int main(void) {
+    printf("welcome to the terminal!\n");
     load_fg_list();
 
     char line[LINE_MAX];
