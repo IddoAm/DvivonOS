@@ -197,7 +197,10 @@ int main(void) {
         }
 
         if (is_fg(cmd))
+        {
             wait_pid(pid);
+            printf("\n");
+        }
     }
 
     printf("terminal exiting..");

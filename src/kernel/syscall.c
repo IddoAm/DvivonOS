@@ -156,9 +156,9 @@ static int syscall_sbrk(interrupt_frame_t* frame) {
     int32_t incr = (int32_t)frame->ebx;
 
     if (incr == 0)
-        return (int)proc->heap_brk;
+        return (int)proc->brk_pointer;
 
-    uint32_t old_brk = proc->heap_brk;
+    uint32_t old_brk = proc->brk_pointer;
     uint32_t new_brk = old_brk + incr;
 
     if (incr > 0) {
@@ -174,7 +174,7 @@ static int syscall_sbrk(interrupt_frame_t* frame) {
         }
     }
 
-    proc->heap_brk = new_brk;
+    proc->brk_pointer = new_brk;
     return (int)old_brk;
 }
 
@@ -364,6 +364,20 @@ static int syscall_yield(interrupt_frame_t* frame) {
     process_yield();
 }
 
+static int syscall_sleep(interrupt_frame_t* frame) {
+    uint32_t ms = (uint32_t)frame->ebx;
+    process_sleep(ms_to_ticks(ms));
+    return SYSCALL_SUCCESS;
+}
+
+static int syscall_wake(interrupt_frame_t* frame) {
+    uint32_t pid = (uint32_t)frame->ebx;
+    process_t* target = scheduler_find_process(pid);
+    if (!target) return SYSCALL_ERROR;
+    process_wake(target);
+    return SYSCALL_SUCCESS;
+}
+
 
 static syscall_func_t sys_table[SYSCALL_COUNT] = {
     [SYSCALL_EXIT]        = syscall_exit,
@@ -381,7 +395,10 @@ static syscall_func_t sys_table[SYSCALL_COUNT] = {
     [SYSCALL_WAIT]        = syscall_wait,
     [SYSCALL_PROCSTAT]    = syscall_procstat,
     [SYSCALL_MKDIR]       = syscall_mkdir,
-    [SYSCALL_YIELD]       = syscall_yield
+    [SYSCALL_SLEEP]       = syscall_sleep,
+    [SYSCALL_WAKE]        = syscall_wake,
+    [SYSCALL_YIELD]       = syscall_yield,
+
 };
 
 // SYSCALL HANDLER

@@ -34,7 +34,7 @@ typedef enum {
     PROCESS_STATE_READY = 0,
     PROCESS_STATE_SLEEPING = 1,
     PROCESS_STATE_ZOMBIE = 2,
-    PROCESS_STATE_BLOCKED = 2,
+    PROCESS_STATE_BLOCKED = 3,
 
 } process_state_t;
 
@@ -48,7 +48,7 @@ typedef struct process {
 
     uint32_t kernel_esp;
     uint32_t kernel_stack_top;
-    uint32_t heap_brk;
+    uint32_t brk_pointer;
 
     file_t* fds[MAX_FDS];
     uint32_t kernel_stack_base;

@@ -293,7 +293,7 @@ void process_init(process_t* p, void (*entry)(void),
     *stack_ptr = 0;  // edi
 
     p->kernel_esp = (uint32_t)stack_ptr;
-    p->heap_brk = PROCESS_HEAP_START;
+    p->brk_pointer = PROCESS_HEAP_START;
     p->next = NULL;
 }
 

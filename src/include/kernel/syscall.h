@@ -20,9 +20,11 @@
 #define SYSCALL_WAIT         12
 #define SYSCALL_PROCSTAT     13
 #define SYSCALL_MKDIR        14
-#define SYSCALL_YIELD        15
+#define SYSCALL_SLEEP        15
+#define SYSCALL_WAKE         16
+#define SYSCALL_YIELD        17
 
-#define SYSCALL_COUNT        16
+#define SYSCALL_COUNT        18
 
 #define SYSCALL_SUCCESS  0
 #define SYSCALL_ERROR   -1

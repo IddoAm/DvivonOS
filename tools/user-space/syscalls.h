@@ -19,6 +19,9 @@
 #define SYSCALL_WAIT        12
 #define SYSCALL_PROCSTAT    13
 #define SYSCALL_MKDIR       14
+#define SYSCALL_SLEEP       15
+#define SYSCALL_WAKE        16
+#define SYSCALL_YIELD       17
 
 // Args struct for create_proc_by_elf syscall
 typedef struct {
@@ -42,6 +45,8 @@ int  wait_pid(int pid);
 int create_dir(char* abs_path);
 // pid=0 means current process
 int  procstat(int pid, proc_stat_t* out);
-void yield(void);
+int yield(void);
+int sleep(uint32_t ms);
+int wake(int pid);
 
 #endif /* SYSCALLS_H */
