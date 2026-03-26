@@ -137,11 +137,24 @@ static int tokenize(char* line, char** argv, int max_args) {
     }
     return argc;
 }
-
+/* ── Helpers ───────────────────────────────────────────────────────── */
+void print_intro(void)
+{
+    char buf[8192];
+    int icon_fd = open("/conf/ido-idiot/ascii-icon.txt", O_RDONLY); 
+    if (icon_fd >= 0) {
+        int n = read(icon_fd, buf, sizeof(buf) - 1);
+        close(icon_fd);
+        if (n > 0) {
+            buf[n] = '\0';
+            printf("%s\n", buf);
+        }
+    }
+}
 /* ── Main loop ───────────────────────────────────────────────────────── */
 
 int main(void) {
-    printf("welcome to the terminal!\n");
+    print_intro();
     load_fg_list();
 
     char line[LINE_MAX];

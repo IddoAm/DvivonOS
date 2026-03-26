@@ -88,7 +88,7 @@ int yield(void) {
     return do_syscall(SYSCALL_YIELD, 0, 0, 0);
 }
 
-int sleep(uint32_t ms) {
+int _sleep(uint32_t ms) {
     return do_syscall(SYSCALL_SLEEP, (uintptr_t)ms, 0, 0);
 }
 

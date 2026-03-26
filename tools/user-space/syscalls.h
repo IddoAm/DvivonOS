@@ -46,7 +46,7 @@ int create_dir(char* abs_path);
 // pid=0 means current process
 int  procstat(int pid, proc_stat_t* out);
 int yield(void);
-int sleep(uint32_t ms);
+int _sleep(uint32_t ms);
 int wake(int pid);
 
 #endif /* SYSCALLS_H */
