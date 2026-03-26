@@ -37,7 +37,7 @@ static file_t* _process_get_fd(process_t* proc, int fd) {
 
 static int syscall_exit(interrupt_frame_t* frame) {
     process_t* current = get_current_process();
-    printf("Process %d exiting with code %d\n", current->pid, frame->ebx);
+    // printf("Process %d exiting with code %d\n", current->pid, frame->ebx);
     process_exit(current, frame);
     return SYSCALL_SUCCESS;
 }

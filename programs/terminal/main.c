@@ -133,6 +133,7 @@ static int tokenize(char* line, char** argv, int max_args) {
         if (*p == '\0') break;
         argv[argc++] = p;
         while (*p && *p != ' ' && *p != '\t') p++;
+        if (*p) *p++ = '\0';
     }
     return argc;
 }
