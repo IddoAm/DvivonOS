@@ -195,6 +195,32 @@ void process_init(process_t* p, void (*entry)(void),
     p->kernel_stack_base = kstack;
     p->kernel_stack_top  = kstack + PAGE_SIZE * 2;
 
+    // Store cwd BEFORE switching address space (cwd may point to caller's userspace)
+    if (cwd) {
+        strncpy(p->cwd, cwd, PROCESS_CWD_MAX - 1);
+        p->cwd[PROCESS_CWD_MAX - 1] = '\0';
+    } else {
+        p->cwd[0] = '/';
+        p->cwd[1] = '\0';
+    }
+
+    // argv[i] may point into the caller's userspace which disappears after the switch.
+    if (argc > PROCESS_ARGV_MAX)
+        printf("%o[WARN] process started with %d args but max is %d\n", STD_COLOR_LIGHT_RED, argc, PROCESS_ARGV_MAX);
+    int safe_argc = (argc > PROCESS_ARGV_MAX) ? PROCESS_ARGV_MAX : argc;
+
+    char* kargv[PROCESS_ARGV_MAX];
+    for (int i = 0; i < PROCESS_ARGV_MAX; i++) kargv[i] = NULL;
+    if (argv) {
+        for (int i = 0; i < safe_argc; i++) {
+            if (argv[i]) {
+                uint32_t len = strlen(argv[i]) + 1;
+                kargv[i] = (char*)kmalloc(len);
+                if (kargv[i]) memcpy(kargv[i], argv[i], len);
+            }
+        }
+    }
+
     p->pd_phys = vmm_create_address_space();
 
     uint32_t old_cr3 = vmm_read_cr3();
@@ -204,36 +230,22 @@ void process_init(process_t* p, void (*entry)(void),
         uint32_t stack_page_vaddr = PROCESS_STACK_TOP - (i + 1) * PAGE_SIZE;
         if (!vmm_alloc_user_page_at(stack_page_vaddr)) {
             printf("process_init: failed to allocate user stack page\n");
+            for (int j = 0; j < safe_argc; j++) if (kargv[j]) kfree((uintptr_t)kargv[j]);
             vmm_switch_address_space(old_cr3);
             return;
         }
     }
 
-    // Store cwd in process struct — accessible later via procstat syscall
-    if (cwd) {
-        strncpy(p->cwd, cwd, PROCESS_CWD_MAX - 1);
-        p->cwd[PROCESS_CWD_MAX - 1] = '\0';
-    } else {
-        p->cwd[0] = '/';
-        p->cwd[1] = '\0';
-    }
-
-    // Build argc/argv layout on the user stack (high → low)
+    // Build argc/argv layout on the user stack using the kernel-heap copies
     uint32_t sp = PROCESS_STACK_TOP;
-
     uint32_t argv_ptrs[PROCESS_ARGV_MAX];
-    if (argc > PROCESS_ARGV_MAX)
-        printf("%o[WARN] process started with %d args but max is %d\n", STD_COLOR_LIGHT_RED, argc, PROCESS_ARGV_MAX);
-    int safe_argc = (argc > PROCESS_ARGV_MAX) ? PROCESS_ARGV_MAX : argc;
 
-
-    if (argv) {
-        for (int i = safe_argc - 1; i >= 0; i--) {
-            uint32_t len = strlen(argv[i]) + 1;
-            sp -= len;
-            memcpy((void*)sp, argv[i], len);
-            argv_ptrs[i] = sp;
-        }
+    for (int i = safe_argc - 1; i >= 0; i--) {
+        const char* src = kargv[i] ? kargv[i] : "";
+        uint32_t len = strlen(src) + 1;
+        sp -= len;
+        memcpy((void*)sp, src, len);
+        argv_ptrs[i] = sp;
     }
 
     sp &= ~3U; // align to 4 bytes
@@ -241,15 +253,18 @@ void process_init(process_t* p, void (*entry)(void),
     // Push NULL sentinel (end of argv[])
     sp -= 4;
     *(uint32_t*)sp = 0;
-    // Push argv pointers (argv[0] will be closest to argc after all pushes)
+    // Push argv pointers
     for (int i = safe_argc - 1; i >= 0; i--) {
         sp -= 4; *(uint32_t*)sp = argv_ptrs[i];
     }
     // Push argc
-    sp -= 4; 
+    sp -= 4;
     *(uint32_t*)sp = (uint32_t)safe_argc;
 
     vmm_switch_address_space(old_cr3);
+
+    // Free kernel-side argv copies
+    for (int i = 0; i < safe_argc; i++) if (kargv[i]) kfree((uintptr_t)kargv[i]);
 
     // Prime the kernel stack with an interrupt frame at the top
     interrupt_frame_t* frame = (interrupt_frame_t*)(p->kernel_stack_top - sizeof(interrupt_frame_t));

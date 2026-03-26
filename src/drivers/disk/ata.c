@@ -105,7 +105,8 @@ static void ata_prepare_irq(void) {
 static void ata_wait_irq(void) {
     while (!ata_irq_fired)
     {
-        process_yield();
+        // process_yield();
+        __asm__("hlt");
     }
 }
 
