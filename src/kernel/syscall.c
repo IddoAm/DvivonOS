@@ -138,6 +138,10 @@ static int syscall_open(interrupt_frame_t* frame) {
     if (flags & 0x400)
         file_flags |= FILE_FLAG_APPEND;
 
+    // Create if O_CREAT is set
+    if (flags & 0x200)
+        fs_create_file(path);
+
     file_t* f = file_open(path, file_flags);
     if (!f)
         return SYSCALL_ERROR;

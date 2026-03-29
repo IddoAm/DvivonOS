@@ -80,10 +80,22 @@ static void builtin_echo(int argc, char** argv) {
 }
 
 static void builtin_cd(const char* dir) {
-    if (dir[0] == '\0') {
+    if (dir[0] == '\0' || (strcmp(dir, ".") == 0) || strcmp(dir, "./") == 0) {
         return;
     }
 
+    if (strcmp(dir, "..") == 0 || strcmp(dir, "../") == 0) {
+        // Go up one level: remove trailing component from current_path
+        char* last_slash = strrchr(current_path, '/');
+        if (last_slash && last_slash != current_path) {
+            *last_slash = '\0';
+        } else {
+            // Already at root
+            strncpy(current_path, "/", sizeof(current_path) - 1);
+            current_path[sizeof(current_path) - 1] = '\0';
+        }
+        return;
+    }
     char resolved[256];
     resolve_path(dir, resolved, sizeof(resolved));
 
@@ -121,6 +133,24 @@ static void builtin_touch(const char* path) {
         printf("touch: failed: %s\n", resolved);
     else
         close(fd);
+}
+
+static void builtin_fwrite(int argc, char** argv) {
+    if (argc < 2) return;
+    char resolved[256];
+    resolve_path(argv[1], resolved, sizeof(resolved));
+    
+    int fs = open(resolved, O_WRONLY);
+    if (fs < 0) {
+        printf("bark: failed to open: %s\n", resolved);
+        return;
+    }
+    for (int i = 2; i < argc; i++) {
+        if (i > 2) write(fs, " ", 1);
+        write(fs, argv[i], strlen(argv[i]));
+    }
+    write(fs, "\n", 1);
+    close(fs);
 }
 
 /* ── Tokenizer ───────────────────────────────────────────────────────── */
@@ -183,6 +213,8 @@ int main(void) {
         if (strcmp(cmd, "cd")   == 0) { builtin_cd(argc > 1 ? argv[1] : "/"); continue; }
         if (strcmp(cmd, "mkdir")== 0) { if (argc > 1) builtin_mkdir(argv[1]); continue; }
         if (strcmp(cmd, "touch")== 0) { if (argc > 1) builtin_touch(argv[1]); continue; }
+        if (strcmp(cmd, "pwd")  == 0) { printf("%s\n", current_path); continue; }
+        if (strcmp(cmd, "bark") == 0) { if (argc > 1) builtin_fwrite(argc, argv); continue; }
         if (strcmp(cmd, "exit") == 0) break;
 
 
