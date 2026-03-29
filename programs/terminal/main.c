@@ -141,7 +141,7 @@ static int tokenize(char* line, char** argv, int max_args) {
 void print_intro(void)
 {
     char buf[8192];
-    int icon_fd = open("/conf/ido-idiot/ascii-icon.txt", O_RDONLY); 
+    int icon_fd = open("/conf/hillel-idiot/ascii-icon.txt", O_RDONLY); 
     if (icon_fd >= 0) {
         int n = read(icon_fd, buf, sizeof(buf) - 1);
         close(icon_fd);
